@@ -10,7 +10,8 @@ const blankProfile = {
   skills: [],
   projects: [],
   education: [],
-  certificates: []
+  certificates: [],
+  sourceDocuments: []
 };
 
 let profile = loadProfile();
@@ -95,7 +96,7 @@ function homePage(){
         </div>
         <div class="actions">
           <button class="btn primary" onclick="setPage('profile')">Manage Career Profile</button>
-          <button class="btn" onclick="openImportTextModal()">Add with AI later</button>
+          <button class="btn" onclick="setPage('profile')">Build Career Profile</button>
         </div>
       </section>
       <section class="card">
@@ -125,41 +126,43 @@ function profilePage(){
     <div class="page-title">
       <p class="eyebrow">My Career Profile</p>
       <h1 style="font-size:42px">Your professional story.</h1>
-      <p class="lead">Keep the full truth of your career here. Future resumes will be generated from this profile rather than inventing new facts.</p>
+      <p class="lead">You only need to provide the raw material. CareerFit can organize the details later, so you don't have to fill dozens of fields yourself.</p>
     </div>
-    <section class="card">
-      <div class="section-head"><div><h2>Personal Information</h2><div class="sub">Used for your resume header.</div></div><button class="btn" onclick="openPersonalModal()">Edit</button></div>
-      <div class="two-col">
-        <div><strong>${escapeHtml(profile.personal.name || "Not added")}</strong><div class="meta">${escapeHtml(profile.personal.headline || "")}</div></div>
-        <div class="meta">${escapeHtml([profile.personal.email,profile.personal.phone,profile.personal.location].filter(Boolean).join(" · ") || "Contact details not added")}</div>
+
+    <section class="card import-card">
+      <div class="section-head">
+        <div><p class="eyebrow">Start with what you already have</p><h2>Import your existing resumes</h2><div class="sub">Upload multiple PDF or DOCX resumes, then review the AI-organized profile before using it for tailoring.</div></div>
+        <button class="btn primary" onclick="openResumeImportModal()">✨ Import Resumes</button>
       </div>
+      <div class="import-grid">
+        <div class="import-step"><span>01</span><div><strong>Upload</strong><p>Drop in old resumes or select multiple files.</p></div></div>
+        <div class="import-step"><span>02</span><div><strong>Analyze</strong><p>CareerFit will extract and organize your real experience.</p></div></div>
+        <div class="import-step"><span>03</span><div><strong>Review</strong><p>Confirm the facts before they become your career profile.</p></div></div>
+      </div>
+      ${profile.sourceDocuments?.length ? `<div class="source-list"><strong>${profile.sourceDocuments.length} source resume${profile.sourceDocuments.length>1?'s':''} saved</strong>${profile.sourceDocuments.map((d,i)=>`<div class="source-item"><span>${escapeHtml(d.name)}</span><button class="icon-btn" onclick="deleteSourceDocument(${i})">×</button></div>`).join('')}</div>` : ''}
     </section>
 
     <section class="card" style="margin-top:18px">
-      <div class="section-head"><div><h2>Work Experience</h2><div class="sub">${s.experiences} saved</div></div><button class="btn primary" onclick="openExperienceModal()">+ Add Experience</button></div>
-      <div class="experience-list">${profile.experiences.length ? profile.experiences.map(experienceCard).join("") : emptyBlock("No work experience yet.","Add your first job, internship, or freelance role.")}</div>
+      <div class="section-head"><div><h2>Work Experience</h2><div class="sub">${s.experiences} saved · only the basics are required</div></div><button class="btn primary" onclick="openExperienceModal()">+ Add Experience</button></div>
+      <div class="experience-list">${profile.experiences.length ? profile.experiences.map(experienceCard).join("") : emptyBlock("No work experience yet.","Add company, position, dates, and your work content. CareerFit can organize the rest.")}</div>
     </section>
 
     <div class="two-col" style="margin-top:18px">
       <section class="card">
-        <div class="section-head"><div><h2>Achievements</h2><div class="sub">${s.achievements} saved</div></div><button class="btn" onclick="openSimpleItemModal('achievement')">+ Add</button></div>
-        ${simpleList(profile.achievements,"achievement")}
-      </section>
-      <section class="card">
-        <div class="section-head"><div><h2>Skills</h2><div class="sub">${s.skills} saved</div></div><button class="btn" onclick="openSimpleItemModal('skill')">+ Add</button></div>
-        ${simpleList(profile.skills,"skill")}
+        <div class="section-head"><div><h2>Certificates</h2><div class="sub">${s.certificates} saved</div></div><button class="btn" onclick="openSimpleItemModal('certificate')">+ Add</button></div>
+        ${simpleList(profile.certificates,"certificate")}
       </section>
       <section class="card">
         <div class="section-head"><div><h2>Projects</h2><div class="sub">${s.projects} saved</div></div><button class="btn" onclick="openSimpleItemModal('project')">+ Add</button></div>
         ${simpleList(profile.projects,"project")}
       </section>
       <section class="card">
-        <div class="section-head"><div><h2>Education</h2><div class="sub">${s.education} saved</div></div><button class="btn" onclick="openSimpleItemModal('education')">+ Add</button></div>
-        ${simpleList(profile.education,"education")}
+        <div class="section-head"><div><h2>Professional Skills</h2><div class="sub">${s.skills} saved · AI can extract these from your materials</div></div><button class="btn" onclick="openSimpleItemModal('skill')">+ Add</button></div>
+        ${simpleList(profile.skills,"skill")}
       </section>
       <section class="card">
-        <div class="section-head"><div><h2>Certificates</h2><div class="sub">${s.certificates} saved</div></div><button class="btn" onclick="openSimpleItemModal('certificate')">+ Add</button></div>
-        ${simpleList(profile.certificates,"certificate")}
+        <div class="section-head"><div><h2>Achievements</h2><div class="sub">${s.achievements} saved · AI-organized</div></div><button class="btn" onclick="openSimpleItemModal('achievement')">+ Add</button></div>
+        ${simpleList(profile.achievements,"achievement")}
       </section>
     </div>`;
 }
@@ -212,26 +215,21 @@ function savePersonal(e){
   profile.personal=Object.fromEntries(f.entries()); saveProfile(); closeModal(); toast("Personal information saved.");
 }
 function openExperienceModal(index=null){
-  const x=index===null?{company:"",position:"",start:"",end:"",current:false,summary:"",responsibilities:"",achievements:"",skills:"",tools:"",products:"",industry:""}:profile.experiences[index];
+  const x=index===null?{company:"",position:"",start:"",end:"",current:false,workContent:""}:profile.experiences[index];
   openModal(index===null?"Add Work Experience":"Edit Work Experience",`<form onsubmit="saveExperience(event,${index===null?"null":index})" class="form-grid">
     <div class="field"><label>Company *</label><input name="company" value="${escapeHtml(x.company)}" required></div>
     <div class="field"><label>Position *</label><input name="position" value="${escapeHtml(x.position)}" required></div>
     <div class="field"><label>Start date</label><input name="start" type="month" value="${escapeHtml(x.start)}"></div>
     <div class="field"><label>End date</label><input name="end" type="month" value="${escapeHtml(x.end)}"></div>
     <div class="field full"><label><input name="current" type="checkbox" ${x.current?"checked":""} style="width:auto;margin-right:7px"> I currently work here</label></div>
-    <div class="field full"><label>Role summary</label><textarea name="summary" placeholder="A short overview of what you did.">${escapeHtml(x.summary)}</textarea></div>
-    <div class="field full"><label>Responsibilities</label><textarea name="responsibilities" placeholder="One responsibility per line">${escapeHtml(x.responsibilities)}</textarea></div>
-    <div class="field full"><label>Achievements / measurable results</label><textarea name="achievements" placeholder="One achievement per line. Keep numbers and facts exactly as they are.">${escapeHtml(x.achievements)}</textarea></div>
-    <div class="field"><label>Skills</label><textarea name="skills" placeholder="e.g. Foreign Trade, Negotiation">${escapeHtml(x.skills)}</textarea></div>
-    <div class="field"><label>Tools / Platforms</label><textarea name="tools" placeholder="e.g. Alibaba, Facebook">${escapeHtml(x.tools)}</textarea></div>
-    <div class="field"><label>Products / Services</label><textarea name="products">${escapeHtml(x.products)}</textarea></div>
-    <div class="field"><label>Industry</label><input name="industry" value="${escapeHtml(x.industry)}"></div>
+    <div class="field full"><label>Work Content</label><textarea name="workContent" style="min-height:220px" placeholder="Write naturally. Don't worry about separating responsibilities, achievements, skills, tools, clients, products, or metrics. CareerFit will organize them later.">${escapeHtml(x.workContent || x.summary || "")}</textarea><div class="hint">Just tell the story as you remember it. Keep real numbers and facts exactly as they are.</div></div>
     <div class="actions field full"><button type="button" class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Save Experience</button></div>
   </form>`);
 }
 function saveExperience(e,index){
   e.preventDefault(); const f=new FormData(e.target);
   const x=Object.fromEntries(f.entries()); x.current=f.get("current")==="on";
+  x.workContent=x.workContent||"";
   if(index===null) profile.experiences.push(x); else profile.experiences[index]=x;
   saveProfile(); closeModal(); toast(index===null?"Experience added.":"Experience updated.");
 }
@@ -278,9 +276,53 @@ function importProfile(file){
     }catch(e){alert("This file is not a valid CareerFit profile.");}
   };reader.readAsText(file);
 }
+function openResumeImportModal(){
+  openModal("Import Existing Resumes",`<div class="import-modal-copy"><p class="small-note">Upload as many old resumes as you want. PDF and DOCX are supported. CareerFit will keep the original source text so AI-organized information can always be traced back to your source.</p><div class="field"><label>Select resumes</label><input id="resume-files" class="file-input" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple></div><div id="resume-import-status" class="hint" style="margin-top:10px"></div><div class="actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="processResumeFiles()">Analyze / Organize</button></div></div>`);
+}
+async function processResumeFiles(){
+  const input=document.getElementById("resume-files"); const status=document.getElementById("resume-import-status");
+  if(!input?.files?.length){status.textContent="Please select at least one PDF or DOCX resume.";return;}
+  const files=[...input.files]; status.textContent=`Reading ${files.length} resume${files.length>1?'s':''}…`;
+  const docs=[];
+  try{
+    for(const file of files){
+      const text=await extractResumeText(file);
+      docs.push({name:file.name,type:file.type||"",size:file.size,text,createdAt:new Date().toISOString()});
+    }
+    profile.sourceDocuments=[...(profile.sourceDocuments||[]),...docs];
+    saveProfile();
+    status.textContent=`${docs.length} resume${docs.length>1?'s':''} imported. AI organization is ready for the next AI-processing phase.`;
+    toast("Resumes imported and saved.");
+  }catch(err){status.textContent="One or more files could not be read. Please try again.";}
+}
+async function extractResumeText(file){
+  if(file.name.toLowerCase().endsWith(".docx")){
+    if(!window.mammoth) await loadScript("https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js");
+    const result=await window.mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});
+    return result.value||"";
+  }
+  if(file.name.toLowerCase().endsWith(".pdf")){
+    if(!window.pdfjsLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js","module");
+    const pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+    let out="";
+    for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const c=await page.getTextContent();out+=c.items.map(x=>x.str).join(" ")+"\n";}
+    return out;
+  }
+  return await file.text();
+}
+function loadScript(src,type){return new Promise((resolve,reject)=>{const s=document.createElement("script");s.src=src;if(type)s.type=type;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});}
+function deleteSourceDocument(i){if(confirm("Remove this imported resume source?")){profile.sourceDocuments.splice(i,1);saveProfile();toast("Source removed.");}}
+
 function openImportTextModal(){
   openModal("Tell AI About Your Experience",`<p class="small-note">This is the AI import entry point. In the next phase, you will be able to paste a long description of your career and have AI automatically split it into companies, projects, skills, achievements, and other structured fields.</p><textarea placeholder="Example: I joined ABC Company in 2024..."></textarea><div class="actions"><button class="btn" onclick="closeModal()">Close</button></div>`);
 }
+// Global navigation handler. Event delegation keeps navigation working even after page content is re-rendered.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-page]");
+  if (!button) return;
+  setPage(button.dataset.page);
+});
+
 function startTailor(){
   const jd=document.getElementById("home-jd")?.value.trim();
   if(!jd){toast("Paste a job description first.");return;}

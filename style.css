@@ -79,3 +79,10 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
   .mobile-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:82px}.mobile-nav-btn span{font-size:18px}.mobile-nav-btn small{font-size:11px}.mobile-nav-btn.active{color:var(--text);font-weight:700}
   .experience-top{flex-direction:column}.actions .btn{flex:1}
 }
+.import-card{background:linear-gradient(180deg,#fff,#fafafa)}
+.import-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.import-step{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+.import-step>span{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.08em}.import-step strong{font-size:14px}.import-step p{font-size:12px;color:var(--muted);line-height:1.45;margin:4px 0 0}
+.source-list{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}.source-item{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:7px;font-size:13px}
+.import-modal-copy{line-height:1.55}
+@media(max-width:760px){.import-grid{grid-template-columns:1fr}.section-head{align-items:flex-start;flex-direction:column}.section-head .btn{width:auto}}

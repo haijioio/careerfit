@@ -98,3 +98,20 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
 .source-choice span{font-size:12px;color:var(--muted)}
 .ai-list{display:grid;gap:12px}.ai-card{border:1px solid var(--line);border-radius:15px;padding:17px;display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.actions.compact{margin-top:0}.score{font-size:28px}.match-box{margin-top:18px;padding:17px;border:1px solid var(--line);border-radius:15px;background:#fafafa}.resume-history{border-top:1px solid var(--line);padding:20px 0}.resume-tabs{display:grid;gap:10px}.resume-tabs details{border:1px solid var(--line);border-radius:12px;padding:12px}.resume-tabs summary{cursor:pointer;font-weight:700}.resume-tabs textarea{margin-top:10px}
 @media(max-width:760px){.ai-card{flex-direction:column}.actions.compact{width:100%}.actions.compact .btn{flex:1}.desktop-nav{overflow:auto;max-width:70vw}}
+
+/* V5.1 interaction feedback */
+.btn,.source-choice,.icon-btn,.tag-x{cursor:pointer;transition:background-color .12s ease,color .12s ease,border-color .12s ease,transform .08s ease,box-shadow .12s ease,opacity .12s ease}
+.btn:hover{background:#f1f3f5;border-color:#cfd5dc}
+.btn.primary:hover{opacity:.92}
+.btn:active:not(:disabled),.source-choice:active,.icon-btn:active,.tag-x:active{transform:translateY(1px) scale(.97);filter:brightness(.88)}
+.btn.primary:active:not(:disabled){filter:brightness(.82);opacity:1}
+.btn:focus-visible,.source-choice:focus-visible{outline:3px solid rgba(17,24,39,.16);outline-offset:2px}
+.btn:disabled{cursor:not-allowed;opacity:.58;transform:none}
+.btn.is-loading{cursor:wait}
+.hidden{display:none!important}
+.status-dot{font-size:14px;vertical-align:middle;margin-left:5px}
+.current-badge{display:inline-flex;align-items:center;border:1px solid #d7dce2;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700;background:#f7f8fa}
+.status-text{font-size:13px;margin-top:7px;font-weight:650}.status-text.success,.ai-status.success{color:#177245}.status-text.error,.ai-status.error{color:#b42318}.status-text.pending{color:#9a6700}
+.ai-status{min-height:20px;margin-top:8px;line-height:1.55;font-weight:600}
+.resume-generation-status{margin-top:12px}
+@media(max-width:760px){.btn:active:not(:disabled),.source-choice:active{transform:scale(.97)}.ai-card .actions.compact{display:grid;grid-template-columns:repeat(2,1fr)}}

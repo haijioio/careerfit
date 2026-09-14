@@ -6,6 +6,7 @@ const AI_CONFIGS_KEY = "careerfit_ai_configs_v5";
 const CURRENT_AI_KEY = "careerfit_current_ai_v5";
 const JD_KEY = "careerfit_jd_v5";
 const RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
+const AI_STATUS_KEY = "careerfit_ai_status_v51";
 
 const blankProfile = {
   version: 2,
@@ -125,7 +126,7 @@ function homePage(){
         <div class="quick-item"><strong>① 工作经历</strong><span>公司 · 岗位 · 时间 · 工作内容</span></div>
         <div class="quick-item"><strong>② 项目经历</strong><span>项目名 · 时间 · 项目描述</span></div>
         <div class="quick-item"><strong>③ 证书</strong><span>只填写证书名称</span></div>
-        <div class="quick-item"><strong>④ 专业技能</strong><span>AI 从所有简历中提取</span></div>
+        <div class="quick-item"><strong>④ 专业技能</strong><span>自己填写和维护</span></div>
       </div>
     </section>
   </div>`;
@@ -153,7 +154,7 @@ function profilePage(){
 
   <div class="two-col" style="margin-top:18px">
     <section class="card"><div class="section-head"><div><h2>证书</h2><div class="sub">只需要证书名称</div></div><button class="btn" onclick="openCertificateModal()">＋添加证书</button></div>${simpleList(profile.certificates,"certificate")}</section>
-    <section class="card"><div class="section-head"><div><h2>专业技能</h2><div class="sub">AI 从所有上传的简历中提取，也可以手动补充</div></div><button class="btn" onclick="extractSkillsFromAllResumes()">✨ AI提取技能</button></div>${profile.skills.length?`<div class="tags skill-cloud">${profile.skills.map((x,i)=>`<span class="tag">${escapeHtml(x)} <button class="tag-x" onclick="deleteSkill(${i})">×</button></span>`).join("")}</div>`:emptyBlock("还没有专业技能","上传简历后点击“AI提取技能”。")}</section>
+    <section class="card"><div class="section-head"><div><h2>专业技能</h2><div class="sub">和证书一样，由你自己填写、编辑和删除。</div></div><button class="btn" onclick="openSkillModal()">＋添加技能</button></div>${profile.skills.length?`<div class="tags skill-cloud">${profile.skills.map((x,i)=>`<span class="tag">${escapeHtml(x)} <button class="tag-x" onclick="deleteSkill(${i})">×</button></span>`).join("")}</div>`:emptyBlock("还没有专业技能","点击“添加技能”手动维护你的专业技能。")}</section>
   </div>`;
 }
 function emptyBlock(title,sub){return `<div class="empty"><strong>${escapeHtml(title)}</strong>${escapeHtml(sub)}</div>`;}
@@ -195,7 +196,7 @@ function openExperienceModal(index=null){
     <div class="field"><label>结束时间</label><input id="exp-end" name="end" type="month" value="${escapeHtml(x.end)}"></div>
     <div class="field full"><label><input name="current" type="checkbox" ${x.current?"checked":""} style="width:auto;margin-right:7px"> 目前仍在职</label></div>
     <div class="field full"><label>工作内容</label><textarea id="exp-content" name="workContent" style="min-height:210px" placeholder="可以自己输入、复制，也可以从已有简历中提取。">${escapeHtml(x.workContent||x.rawWorkContent||"")}</textarea><div class="hint">你不用自己拆分职责、成果、技能等，先把原始内容给 AI 即可。</div></div>
-    <div class="actions field full"><button type="button" class="btn" ${hasSources?"":"disabled"} onclick="insertExperienceFromResume()">📄 从已有简历提取</button><button type="button" class="btn" onclick="polishExperienceContent()">✨ AI分析并润色</button></div>
+    <div class="actions field full"><button id="exp-polish-btn" type="button" class="btn" onclick="polishExperienceContent()">✨ AI分析并润色</button><button id="exp-source-btn" type="button" class="btn" ${hasSources?"":"disabled"} onclick="insertExperienceFromResume()">📄 从已有简历提取</button></div>
     <div id="experience-ai-status" class="hint field full"></div>
     <div class="actions field full"><button type="button" class="btn" onclick="closeModal()">取消</button><button class="btn primary" type="submit">保存工作经历</button></div>
   </form>`);
@@ -220,7 +221,7 @@ function openProjectModal(index=null){
     <div class="field"><label>开始时间</label><input name="start" type="month" value="${escapeHtml(x.start)}"></div>
     <div class="field"><label>结束时间</label><input name="end" type="month" value="${escapeHtml(x.end)}"></div>
     <div class="field full"><label>项目描述</label><textarea id="project-content" name="description" style="min-height:200px" placeholder="可以自己输入、复制，也可以从已有简历中提取。">${escapeHtml(x.description||x.rawDescription||"")}</textarea></div>
-    <div class="actions field full"><button type="button" class="btn" ${profile.sourceDocuments.length?"":"disabled"} onclick="insertProjectFromResume()">📄 从已有简历提取</button><button type="button" class="btn" onclick="polishProjectContent()">✨ AI分析并润色</button></div>
+    <div class="actions field full"><button id="project-polish-btn" type="button" class="btn" onclick="polishProjectContent()">✨ AI分析并润色</button><button id="project-source-btn" type="button" class="btn" ${profile.sourceDocuments.length?"":"disabled"} onclick="insertProjectFromResume()">📄 从已有简历提取</button></div>
     <div id="project-ai-status" class="hint field full"></div>
     <div class="actions field full"><button type="button" class="btn" onclick="closeModal()">取消</button><button class="btn primary" type="submit">保存项目</button></div>
   </form>`);
@@ -301,66 +302,66 @@ function loadScript(src){return new Promise((resolve,reject)=>{
 });}
 function deleteSourceDocument(i){if(confirm("删除这份已上传的简历原文吗？")){profile.sourceDocuments.splice(i,1);saveProfile();toast("已删除");}}
 
+function setActionBusy(buttonId, busy, text){
+  const b=document.getElementById(buttonId); if(!b)return;
+  if(busy){ if(!b.dataset.originalText)b.dataset.originalText=b.textContent; b.disabled=true; b.classList.add("is-loading"); b.textContent=text; }
+  else { b.disabled=false; b.classList.remove("is-loading"); if(b.dataset.originalText)b.textContent=b.dataset.originalText; }
+}
+function setStatus(id,text,type="info"){const el=document.getElementById(id);if(!el)return;el.textContent=text;el.className=`hint field full ai-status ${type}`;}
 async function insertExperienceFromResume(){
   const company=document.getElementById("exp-company")?.value.trim(),position=document.getElementById("exp-position")?.value.trim(),start=document.getElementById("exp-start")?.value,end=document.getElementById("exp-end")?.value;
   const status=document.getElementById("experience-ai-status");
-  if(!company||!position){status.textContent="请先填写公司和岗位。";return;}
-  const key=getApiKey();if(!key){status.textContent="请先在“设置”里填写 Gemini API Key。";return;}
+  if(!company||!position){setStatus("experience-ai-status","请先填写公司和岗位。","error");return;}
+  if(!getCurrentAI()){setStatus("experience-ai-status","请先在“设置”里配置一个 AI。","error");return;}
   const doc=await chooseSourceDocument("选择用于提取这段工作经历的简历"); if(!doc)return;
-  status.textContent="正在根据公司、岗位和时间定位简历内容…";
+  setActionBusy("exp-source-btn",true,"⏳ 正在读取简历…"); setActionBusy("exp-polish-btn",true,"⏳ 请稍候…");
+  setStatus("experience-ai-status",`⏳ 正在从“${doc.name}”中定位对应工作经历，请稍候，不要重复点击。`);
   try{
-    const result=await callGeminiJSON(`你是中文简历整理助手。请只从给定简历原文中找到与“公司、岗位、时间”最匹配的工作经历内容。不要编造，不要把其他公司的内容混进来。然后将找到的内容整理成一段适合放入职业整理库的中文“工作内容”。保留原文中的真实数字和事实，不得新增数字。输出 JSON：{"raw_found":"原文中定位到的相关内容","polished":"润色后的工作内容"}。如果找不到匹配内容，raw_found 和 polished 都返回空字符串。\n\n公司：${company}\n岗位：${position}\n开始：${start||"未填写"}\n结束：${end||"未填写"}\n\n简历原文：\n${doc.text}`);
-    if(!result.polished){status.textContent="这份简历里没有找到足够明确的对应内容，请换一份简历或自己粘贴。";return;}
+    const result=await callAIJSON(`你是中文简历整理助手。请只从给定简历原文中找到与“公司、岗位、时间”最匹配的工作经历内容。不要编造，不要把其他公司的内容混进来。然后将找到的内容整理成一段适合放入职业整理库的中文“工作内容”。保留原文中的真实数字和事实，不得新增数字。输出 JSON：{"raw_found":"原文中定位到的相关内容","polished":"润色后的工作内容"}。如果找不到匹配内容，raw_found 和 polished 都返回空字符串。\n\n公司：${company}\n岗位：${position}\n开始：${start||"未填写"}\n结束：${end||"未填写"}\n\n简历原文：\n${doc.text}`);
+    if(!result.polished){setStatus("experience-ai-status","❌ 没有找到足够明确的对应内容，请换一份简历或自己输入。","error");return;}
     document.getElementById("exp-content").value=result.polished;
     document.getElementById("exp-content").dataset.raw=result.raw_found||result.polished;
-    status.textContent=`已从“${doc.name}”定位并润色。你可以继续修改后保存。`;
-  }catch(err){status.textContent=`AI处理失败：${err.message}`;}
+    setStatus("experience-ai-status",`✓ 已从“${doc.name}”找到并整理相关经历。你可以继续修改后保存。`,`success`);
+  }catch(err){setStatus("experience-ai-status",`❌ AI处理失败：${friendlyError(err)}`,"error");}
+  finally{setActionBusy("exp-source-btn",false);setActionBusy("exp-polish-btn",false);}
 }
 async function polishExperienceContent(){
-  const company=document.getElementById("exp-company")?.value.trim(),position=document.getElementById("exp-position")?.value.trim(),content=document.getElementById("exp-content")?.value.trim(),status=document.getElementById("experience-ai-status");
-  if(!content){status.textContent="请先输入或从简历提取工作内容。";return;}
-  const key=getApiKey();if(!key){status.textContent="请先在“设置”里填写 Gemini API Key。";return;}
-  status.textContent="AI 正在分析并润色…";
+  const company=document.getElementById("exp-company")?.value.trim(),position=document.getElementById("exp-position")?.value.trim(),content=document.getElementById("exp-content")?.value.trim();
+  if(!content){setStatus("experience-ai-status","请先输入或从简历提取工作内容。","error");return;}
+  if(!getCurrentAI()){setStatus("experience-ai-status","请先在“设置”里配置一个 AI。","error");return;}
+  setActionBusy("exp-polish-btn",true,"⏳ AI正在分析并润色…");setActionBusy("exp-source-btn",true,"⏳ 请稍候…");
+  setStatus("experience-ai-status","⏳ AI正在分析并润色，请稍候，不要重复点击。请稍等几秒。","info");
   try{
-    const result=await callGeminiJSON(`你是中文简历内容润色助手。请润色下面的工作内容，使其更专业、清晰、有成果导向，但绝不编造任何事实、数字、客户、技能或职责。不得改变原文数字。不要增加原文没有的信息。根据公司和岗位语境组织表达。输出 JSON：{"polished":"润色后的中文工作内容"}。\n公司：${company}\n岗位：${position}\n原始工作内容：\n${content}`);
+    const result=await callAIJSON(`你是中文简历内容润色助手。请润色下面的工作内容，使其更专业、清晰、有成果导向，但绝不编造任何事实、数字、客户、技能或职责。不得改变原文数字。不要增加原文没有的信息。根据公司和岗位语境组织表达。输出 JSON：{"polished":"润色后的中文工作内容"}。\n公司：${company}\n岗位：${position}\n原始工作内容：\n${content}`);
     if(result.polished)document.getElementById("exp-content").value=result.polished;
-    status.textContent="AI 润色完成，请确认内容真实后再保存。";
-  }catch(err){status.textContent=`AI处理失败：${err.message}`;}
+    setStatus("experience-ai-status","✓ AI分析并润色完成，请确认内容真实后再保存。","success");
+  }catch(err){setStatus("experience-ai-status",`❌ AI处理失败：${friendlyError(err)}`,"error");}
+  finally{setActionBusy("exp-polish-btn",false);setActionBusy("exp-source-btn",false);}
 }
-
 async function insertProjectFromResume(){
-  const title=document.getElementById("project-title")?.value.trim(),start=document.querySelector('#project-content')?document.querySelector('#project-content').closest('form').querySelector('[name="start"]').value:"",end=document.querySelector('#project-content')?document.querySelector('#project-content').closest('form').querySelector('[name="end"]').value:"",status=document.getElementById("project-ai-status");
-  if(!title){status.textContent="请先填写项目名称。";return;}
-  const key=getApiKey();if(!key){status.textContent="请先在“设置”里填写 Gemini API Key。";return;}
+  const title=document.getElementById("project-title")?.value.trim(),form=document.getElementById("project-content")?.closest("form"),start=form?.querySelector('[name="start"]')?.value||"",end=form?.querySelector('[name="end"]')?.value||"",status=document.getElementById("project-ai-status");
+  if(!title){setStatus("project-ai-status","请先填写项目名称。","error");return;}
+  if(!getCurrentAI()){setStatus("project-ai-status","请先在“设置”里配置一个 AI。","error");return;}
   const doc=await chooseSourceDocument("选择用于提取这个项目的简历");if(!doc)return;
-  status.textContent="正在定位项目内容…";
+  setActionBusy("project-source-btn",true,"⏳ 正在读取简历…");setActionBusy("project-polish-btn",true,"⏳ 请稍候…");setStatus("project-ai-status",`⏳ 正在从“${doc.name}”中定位项目内容，请稍候，不要重复点击。`);
   try{
-    const result=await callGeminiJSON(`你是中文简历整理助手。请只从给定简历中找到与项目名称和时间最匹配的项目内容。不要编造。不要混入其他项目或工作经历。然后整理成适合职业整理库的中文项目描述。输出 JSON：{"raw_found":"原文相关内容","polished":"润色后的项目描述"}。找不到就返回空字符串。\n项目名称：${title}\n开始：${start||"未填写"}\n结束：${end||"未填写"}\n简历原文：\n${doc.text}`);
-    if(!result.polished){status.textContent="没有找到足够明确的项目内容，请换一份简历或自己输入。";return;}
-    document.getElementById("project-content").value=result.polished;status.textContent=`已从“${doc.name}”定位并润色。`;
-  }catch(err){status.textContent=`AI处理失败：${err.message}`;}
+    const result=await callAIJSON(`你是中文简历整理助手。请只从给定简历中找到与项目名称和时间最匹配的项目内容。不要编造。不要混入其他项目或工作经历。然后整理成适合职业整理库的中文项目描述。输出 JSON：{"raw_found":"原文相关内容","polished":"润色后的项目描述"}。找不到就返回空字符串。\n项目名称：${title}\n开始：${start||"未填写"}\n结束：${end||"未填写"}\n简历原文：\n${doc.text}`);
+    if(!result.polished){setStatus("project-ai-status","❌ 没有找到足够明确的项目内容，请换一份简历或自己输入。","error");return;}
+    document.getElementById("project-content").value=result.polished;setStatus("project-ai-status",`✓ 已从“${doc.name}”找到并整理项目内容。`,`success`);
+  }catch(err){setStatus("project-ai-status",`❌ AI处理失败：${friendlyError(err)}`,"error");}
+  finally{setActionBusy("project-source-btn",false);setActionBusy("project-polish-btn",false);}
 }
 async function polishProjectContent(){
-  const title=document.getElementById("project-title")?.value.trim(),content=document.getElementById("project-content")?.value.trim(),status=document.getElementById("project-ai-status");
-  if(!content){status.textContent="请先输入或从简历提取项目描述。";return;}
-  const key=getApiKey();if(!key){status.textContent="请先在“设置”里填写 Gemini API Key。";return;}
-  status.textContent="AI 正在分析并润色…";
-  try{
-    const result=await callGeminiJSON(`你是中文简历项目描述润色助手。请让项目描述更专业、清晰、有成果导向，但绝不编造事实或数字，不新增原文没有的信息。输出 JSON：{"polished":"润色后的中文项目描述"}。\n项目名称：${title}\n原始描述：\n${content}`);
-    if(result.polished)document.getElementById("project-content").value=result.polished;status.textContent="AI 润色完成，请确认后保存。";
-  }catch(err){status.textContent=`AI处理失败：${err.message}`;}
+  const title=document.getElementById("project-title")?.value.trim(),content=document.getElementById("project-content")?.value.trim();
+  if(!content){setStatus("project-ai-status","请先输入或从简历提取项目描述。","error");return;}
+  if(!getCurrentAI()){setStatus("project-ai-status","请先在“设置”里配置一个 AI。","error");return;}
+  setActionBusy("project-polish-btn",true,"⏳ AI正在分析并润色…");setActionBusy("project-source-btn",true,"⏳ 请稍候…");setStatus("project-ai-status","⏳ AI正在分析并润色，请稍候，不要重复点击。请稍等几秒。","info");
+  try{const result=await callAIJSON(`你是中文简历项目描述润色助手。请让项目描述更专业、清晰、有成果导向，但绝不编造事实或数字，不新增原文没有的信息。输出 JSON：{"polished":"润色后的中文项目描述"}。\n项目名称：${title}\n原始描述：\n${content}`);if(result.polished)document.getElementById("project-content").value=result.polished;setStatus("project-ai-status","✓ AI分析并润色完成，请确认后保存。","success");}
+  catch(err){setStatus("project-ai-status",`❌ AI处理失败：${friendlyError(err)}`,"error");}
+  finally{setActionBusy("project-polish-btn",false);setActionBusy("project-source-btn",false);}
 }
-
-async function extractSkillsFromAllResumes(){
-  if(!profile.sourceDocuments.length){toast("请先上传至少一份简历");return;}
-  const key=getApiKey();if(!key){toast("请先在“设置”里填写 Gemini API Key");return;}
-  toast("正在从所有简历提取技能…");
-  try{
-    const source=profile.sourceDocuments.map(d=>`===== ${d.name} =====\n${d.text}`).join("\n\n");
-    const result=await callGeminiJSON(`你是职业技能提取助手。只从用户提供的简历原文中提取明确出现或明确体现的专业技能、工具、平台、软件、方法。不要推断用户没有证据的技能。去重后返回 JSON：{"skills":["技能1","技能2"]}。\n\n${source}`);
-    profile.skills=uniqueStrings([...(profile.skills||[]),...(Array.isArray(result.skills)?result.skills:[])]);saveProfile();toast(`已提取 ${profile.skills.length} 项技能`);
-  }catch(err){toast(`技能提取失败：${err.message}`);}
-}
+function openSkillModal(){openModal("添加专业技能",`<form onsubmit="saveSkill(event)" class="form-grid"><div class="field full"><label>专业技能 *</label><input name="skill" placeholder="例如：Excel" required></div><div class="actions field full"><button type="button" class="btn" onclick="closeModal()">取消</button><button class="btn primary" type="submit">保存技能</button></div></form>`);}
+function saveSkill(e){e.preventDefault();const f=new FormData(e.target),skill=String(f.get("skill")||"").trim();if(!skill)return;profile.skills=uniqueStrings([...(profile.skills||[]),skill]);saveProfile();closeModal();toast("技能已添加");}
 function chooseSourceDocument(title){
   return new Promise(resolve=>{
     if(!profile.sourceDocuments.length){resolve(null);return;}
@@ -370,57 +371,66 @@ function chooseSourceDocument(title){
   });
 }
 
-function loadAIConfigs(){
-  try{return JSON.parse(localStorage.getItem(AI_CONFIGS_KEY)||"[]")}catch{return []}
-}
+function loadAIConfigs(){try{const arr=JSON.parse(localStorage.getItem(AI_CONFIGS_KEY)||"[]");return Array.isArray(arr)?arr.map(normalizeAIConfig):[]}catch{return []}}
 function saveAIConfigs(items){localStorage.setItem(AI_CONFIGS_KEY,JSON.stringify(items));}
 function getCurrentAI(){const id=localStorage.getItem(CURRENT_AI_KEY)||"";return loadAIConfigs().find(x=>x.id===id)||loadAIConfigs()[0]||null;}
 function getApiKey(){return getCurrentAI()?.apiKey||profile.ai?.apiKey||localStorage.getItem(AI_KEY)||"";}
-function aiConfigCard(c){const current=getCurrentAI()?.id===c.id;return `<article class="ai-card"><div><h3>${escapeHtml(c.name||"未命名 AI")}</h3><div class="meta">${escapeHtml(c.model||"未填写模型")} · ${escapeHtml(c.apiType||"OpenAI Compatible")}</div><div class="small-note">${current?"🟢 当前使用":"⚪ 可切换"}</div></div><div class="actions compact"><button class="btn" onclick="testAIConfig('${c.id}')">测试</button>${current?'':`<button class="btn" onclick="setCurrentAI('${c.id}')">设为当前</button>`}<button class="btn" onclick="openAIConfigModal('${c.id}')">编辑</button><button class="btn danger" onclick="deleteAIConfig('${c.id}')">删除</button></div></article>`}
+function getAIStatuses(){try{return JSON.parse(localStorage.getItem(AI_STATUS_KEY)||"{}")}catch{return {}}}
+function saveAIStatuses(x){localStorage.setItem(AI_STATUS_KEY,JSON.stringify(x));}
+function friendlyError(err){let m=String(err?.message||err||"未知错误");if(/401|invalid.*key|invalid.*token|unauthor/i.test(m))return "API Key 无效或已过期，请检查设置。";if(/402|quota|balance|credit|limit/i.test(m))return "API 额度可能不足，请检查账户余额或切换其他 AI。";if(/Failed to fetch|NetworkError|网络/i.test(m))return "网络连接异常，请检查网络后重试。";if(/timeout|超时/i.test(m))return "AI 响应超时，请稍后重试。";return m.slice(0,220);}
+function inferProvider(c){const name=`${c.name||""} ${c.apiType||""}`.toLowerCase();if(/智谱|zhipu|bigmodel|glm/.test(name))return "智谱";if(/deepseek/.test(name))return "DeepSeek";if(/openai/.test(name))return "OpenAI";if(/gemini|google/.test(name))return "Gemini";if(/anthropic|claude/.test(name))return "Anthropic";return c.provider||"OpenAI Compatible";}
+function defaultBaseUrl(provider){return {"智谱":"https://open.bigmodel.cn/api/paas/v4/","DeepSeek":"https://api.deepseek.com/","OpenAI":"https://api.openai.com/v1/","Gemini":"https://generativelanguage.googleapis.com/v1beta","Anthropic":"https://api.anthropic.com/v1"}[provider]||"";}
+function normalizeAIConfig(c){const provider=c.provider||inferProvider(c);const base=c.baseUrl||defaultBaseUrl(provider);const type=provider==="Gemini"?"Gemini":provider==="Anthropic"?"Anthropic":"OpenAI Compatible";return {...c,provider,apiType:c.apiType||type,apiFormat:c.apiFormat||type,baseUrl:base};}
+function aiConfigCard(c){const current=getCurrentAI()?.id===c.id,statuses=getAIStatuses(),st=statuses[c.id]||"untested",label=st==="success"?"🟢":st==="error"?"🔴":st==="testing"?"🟡":"⚪";return `<article class="ai-card"><div><h3>${escapeHtml(c.name||"未命名 AI")} <span class="status-dot" title="连接状态">${label}</span></h3><div class="meta">${escapeHtml(c.model||"未填写模型")} · ${escapeHtml(c.provider||c.apiType||"OpenAI Compatible")}</div><div class="small-note">${current?'<span class="current-badge">当前使用</span>':'可切换'}</div>${st==="success"?'<div class="status-text success">连接成功</div>':st==="error"?'<div class="status-text error">连接失败</div>':st==="testing"?'<div class="status-text pending">正在测试…</div>':''}</div><div class="actions compact"><button class="btn" ${st==="testing"?'disabled':''} onclick="testAIConfig('${c.id}')">${st==="testing"?'⏳ 测试中…':'测试'}</button>${current?'':`<button class="btn" onclick="setCurrentAI('${c.id}')">设为当前</button>`}<button class="btn" onclick="openAIConfigModal('${c.id}')">编辑</button><button class="btn danger" onclick="deleteAIConfig('${c.id}')">删除</button></div></article>`}
 function openAIConfigModal(id=null){
-  const old=id?loadAIConfigs().find(x=>x.id===id):null;
-  const c=old||{id:crypto.randomUUID(),name:"",apiType:"OpenAI Compatible",baseUrl:"",apiKey:"",model:""};
+  const old=id?loadAIConfigs().find(x=>x.id===id):null;const c=normalizeAIConfig(old||{id:crypto.randomUUID(),name:"",provider:"智谱",apiType:"OpenAI Compatible",apiFormat:"OpenAI Compatible",baseUrl:"",apiKey:"",model:""});
   openModal(id?"编辑 AI 配置":"添加 AI 配置",`<form class="form-grid" onsubmit="saveAIConfig(event,'${c.id}',${id?'true':'false'})">
-    <div class="field full"><label>配置名称 *</label><input id="ai-name" value="${escapeHtml(c.name)}" placeholder="例如：智谱-主账号" required></div>
-    <div class="field"><label>API 类型</label><select id="ai-type"><option ${c.apiType==='OpenAI Compatible'?'selected':''}>OpenAI Compatible</option><option ${c.apiType==='Gemini'?'selected':''}>Gemini</option><option ${c.apiType==='Anthropic'?'selected':''}>Anthropic</option><option ${c.apiType==='自定义'?'selected':''}>自定义</option></select></div>
-    <div class="field"><label>API 格式</label><select id="ai-format"><option selected>OpenAI Compatible</option><option>Gemini</option><option>Anthropic</option></select></div>
-    <div class="field full"><label>API Base URL *</label><input id="ai-base" value="${escapeHtml(c.baseUrl)}" placeholder="例如：https://open.bigmodel.cn/api/paas/v4" required></div>
+    <div class="field full"><label>AI 名称 *</label><input id="ai-name" value="${escapeHtml(c.name)}" placeholder="例如：智谱 GLM" required></div>
+    <div class="field full"><label>AI 服务商</label><select id="ai-provider" onchange="syncAIProviderDefaults()"><option ${c.provider==='智谱'?'selected':''}>智谱</option><option ${c.provider==='DeepSeek'?'selected':''}>DeepSeek</option><option ${c.provider==='OpenAI'?'selected':''}>OpenAI</option><option ${c.provider==='Gemini'?'selected':''}>Gemini</option><option ${c.provider==='Anthropic'?'selected':''}>Anthropic</option><option ${c.provider==='OpenAI Compatible'?'selected':''}>OpenAI Compatible</option><option ${c.provider==='自定义'?'selected':''}>自定义</option></select></div>
     <div class="field full"><label>API Key *</label><input id="ai-key" type="password" value="${escapeHtml(c.apiKey)}" placeholder="只保存在当前浏览器" required></div>
     <div class="field full"><label>Model *</label><input id="ai-model" value="${escapeHtml(c.model)}" placeholder="例如：glm-4.5-flash" required></div>
-    <div class="hint field full">API Key 不会进入职业整理库的普通 JSON 导出。请不要把 Key 发到聊天或截图里。</div>
-    <div class="actions field full"><button type="button" class="btn" onclick="testAIConfigFromForm()">测试连接</button><button type="submit" class="btn primary">保存</button></div>
-  </form>`);
-  window.__aiEditingId=c.id;
+    <div id="ai-advanced" class="field full ${['自定义','OpenAI Compatible'].includes(c.provider)?'':'hidden'}"><label>Base URL${c.provider==='自定义'?' *':''}</label><input id="ai-base" value="${escapeHtml(c.baseUrl)}" placeholder="已知服务商会自动填写"></div>
+    <div class="hint field full">已知服务商会自动使用对应接口地址；只有自定义/OpenAI Compatible 才需要你自己填写 Base URL。API Key 只保存在当前浏览器，不会进入职业资料 JSON 导出。</div>
+    <div class="actions field full"><button type="button" class="btn" onclick="closeModal()">取消</button><button type="submit" class="btn primary">保存</button></div>
+  </form>`);window.__aiEditingId=c.id;
 }
-function getAIConfigFromForm(){return {id:window.__aiEditingId,name:document.getElementById('ai-name')?.value.trim()||'',apiType:document.getElementById('ai-type')?.value||'OpenAI Compatible',apiFormat:document.getElementById('ai-format')?.value||'OpenAI Compatible',baseUrl:document.getElementById('ai-base')?.value.trim()||'',apiKey:document.getElementById('ai-key')?.value.trim()||'',model:document.getElementById('ai-model')?.value.trim()||''};}
-async function testAIConfigFromForm(){try{const c=getAIConfigFromForm();await callAI(c,'只回复：连接成功');toast('✓ 连接成功');}catch(e){toast('✕ 连接失败：'+e.message);}}
-function saveAIConfig(event,id,isEdit){event.preventDefault();const c=getAIConfigFromForm();if(!c.name||!c.baseUrl||!c.apiKey||!c.model)return toast('请完整填写 AI 配置');let arr=loadAIConfigs();const i=arr.findIndex(x=>x.id===id);if(i>=0)arr[i]=c;else arr.push(c);saveAIConfigs(arr);if(!localStorage.getItem(CURRENT_AI_KEY))localStorage.setItem(CURRENT_AI_KEY,c.id);closeModal();render();toast('AI 配置已保存');}
+function syncAIProviderDefaults(){const p=document.getElementById('ai-provider')?.value,base=document.getElementById('ai-base'),adv=document.getElementById('ai-advanced');if(!base||!adv)return;const known=defaultBaseUrl(p);if(known)base.value=known;adv.classList.toggle('hidden',!['自定义','OpenAI Compatible'].includes(p));base.required=p==='自定义';}
+function getAIConfigFromForm(){const provider=document.getElementById('ai-provider')?.value||'智谱';const base=document.getElementById('ai-base')?.value.trim()||defaultBaseUrl(provider);const type=provider==='Gemini'?'Gemini':provider==='Anthropic'?'Anthropic':'OpenAI Compatible';return {id:window.__aiEditingId,name:document.getElementById('ai-name')?.value.trim()||'',provider,apiType:type,apiFormat:type,baseUrl:base,apiKey:document.getElementById('ai-key')?.value.trim()||'',model:document.getElementById('ai-model')?.value.trim()||''};}
+function saveAIConfig(event,id,isEdit){event.preventDefault();const c=getAIConfigFromForm();if(!c.name||!c.apiKey||!c.model||(!c.baseUrl&&c.provider==='自定义'))return toast('请填写 AI 名称、API Key 和 Model');let arr=loadAIConfigs().map(normalizeAIConfig);const i=arr.findIndex(x=>x.id===id);if(i>=0)arr[i]=c;else arr.push(c);saveAIConfigs(arr);const statuses=getAIStatuses();statuses[c.id]='untested';saveAIStatuses(statuses);if(!localStorage.getItem(CURRENT_AI_KEY))localStorage.setItem(CURRENT_AI_KEY,c.id);closeModal();render();toast('AI 配置已保存，请测试连接');}
 function setCurrentAI(id){if(loadAIConfigs().some(x=>x.id===id)){localStorage.setItem(CURRENT_AI_KEY,id);toast('已切换当前 AI');render();}}
-function deleteAIConfig(id){const arr=loadAIConfigs(),c=arr.find(x=>x.id===id);if(!c)return;if(!confirm(`确定删除“${c.name}”吗？只删除 AI 配置，不会删除职业资料。`))return;const next=arr.filter(x=>x.id!==id);saveAIConfigs(next);if(localStorage.getItem(CURRENT_AI_KEY)===id)localStorage.setItem(CURRENT_AI_KEY,next[0]?.id||'');render();}
-async function testAIConfig(id){const c=loadAIConfigs().find(x=>x.id===id);if(!c)return;try{const a=await callAI(c,'只回复：连接成功');toast('✓ '+(a||'连接成功'));}catch(e){toast('✕ 连接失败：'+e.message);}}
-async function callAI(config,prompt){
-  if(!config?.apiKey||!config?.baseUrl||!config?.model)throw new Error('当前 AI 配置不完整');
+function deleteAIConfig(id){const arr=loadAIConfigs(),c=arr.find(x=>x.id===id);if(!c)return;if(!confirm(`确定删除“${c.name}”吗？只删除 AI 配置，不会删除职业资料。`))return;const next=arr.filter(x=>x.id!==id);saveAIConfigs(next);const statuses=getAIStatuses();delete statuses[id];saveAIStatuses(statuses);if(localStorage.getItem(CURRENT_AI_KEY)===id)localStorage.setItem(CURRENT_AI_KEY,next[0]?.id||'');render();}
+async function testAIConfig(id){const c=normalizeAIConfig(loadAIConfigs().find(x=>x.id===id));if(!c)return;const statuses=getAIStatuses();statuses[id]='testing';saveAIStatuses(statuses);render();try{const a=await callAI(c,'只回复：连接成功');const s=getAIStatuses();s[id]='success';saveAIStatuses(s);render();toast('✓ 连接成功');}catch(e){const s=getAIStatuses();s[id]='error';saveAIStatuses(s);render();toast('✕ 连接失败：'+friendlyError(e));}}
+async function callAI(config,prompt,images=[]){
+  config=normalizeAIConfig(config);if(!config?.apiKey||!config?.baseUrl||!config?.model)throw new Error('当前 AI 配置不完整');
   const type=config.apiFormat||config.apiType||'OpenAI Compatible';
   if(type==='Gemini'){
     const base=config.baseUrl.replace(/\/+$/,'');const url=/generateContent$/.test(base)?base:`${base}/models/${config.model}:generateContent`;
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':config.apiKey},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
-    const t=await r.text();if(!r.ok)throw new Error(t.slice(0,300));const d=JSON.parse(t);return d?.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';
+    const parts=[{text:prompt},...(images||[]).map(x=>({inlineData:{mimeType:x.mimeType,data:x.data}}))];
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':config.apiKey},body:JSON.stringify({contents:[{parts}]})});
+    const t=await r.text();if(!r.ok)throw new Error(`API ${r.status}: ${t.slice(0,300)}`);const d=JSON.parse(t);return d?.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';
   }
-  const base=config.baseUrl.replace(/\/+$/,'');const url=/chat\/completions$/.test(base)?base:`${base}/chat/completions`;
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:config.model,messages:[{role:'user',content:prompt}],temperature:.2})});
+  if(type==='Anthropic'){
+    const base=config.baseUrl.replace(/\/+$/,'');const url=/messages$/.test(base)?base:`${base}/messages`;
+    const content=[{type:'text',text:prompt},...(images||[]).map(x=>({type:'image',source:{type:'base64',media_type:x.mimeType,data:x.data}}))];
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':config.apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:config.model,max_tokens:4096,messages:[{role:'user',content}]})});
+    const t=await r.text();if(!r.ok)throw new Error(`API ${r.status}: ${t.slice(0,300)}`);const d=JSON.parse(t);return d?.content?.map(x=>x.text||'').join('')||'';
+  }
+  const base=config.baseUrl.replace(/\/+$/,'');const url=/chat\/completions$/.test(base)?base:`${base}/chat/completions`;const content=images?.length?[{type:'text',text:prompt},...(images.map(x=>({type:'image_url',image_url:{url:`data:${x.mimeType};base64,${x.data}`}})))] : prompt;
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:config.model,messages:[{role:'user',content}],temperature:.2})});
   const t=await r.text();if(!r.ok)throw new Error(`API ${r.status}: ${t.slice(0,300)}`);const d=JSON.parse(t);return d?.choices?.[0]?.message?.content||d?.output_text||'';
 }
 async function callAIJSON(prompt){const raw=await callAI(getCurrentAI(),prompt);try{return JSON.parse(raw)}catch{const cleaned=raw.replace(/^```json\s*/i,'').replace(/```$/i,'').trim();return JSON.parse(cleaned);}}
 async function callGeminiJSON(prompt){return callAIJSON(prompt)}
-function saveAiSettings(){toast('V5 已改为多 AI 配置，请使用“＋添加 AI”');}
-async function testAiConnection(){const c=getCurrentAI();if(!c)return toast('请先添加 AI 配置');try{await callAI(c,'只回复：连接成功');toast('✓ 当前 AI 连接成功')}catch(e){toast('✕ 连接失败：'+e.message);}}
 
 
-function jdPage(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{return null}})();return `<div class="page-title"><p class="eyebrow">JD 分析</p><h1 style="font-size:42px">把招聘 JD 复制过来。</h1><p class="lead">先分析岗位要求，再与你的职业整理库匹配。AI 不会为你虚构不存在的经历。</p></div><section class="card"><div class="form-grid"><div class="field full"><label>岗位名称（可选）</label><input id="jd-title" value="${escapeHtml(saved?.title||'')}" placeholder="例如：外贸业务员"></div><div class="field full"><label>招聘 JD *</label><textarea id="jd-text" rows="16" placeholder="把招聘网站上的完整 JD 复制到这里">${escapeHtml(saved?.jd||'')}</textarea></div></div><div class="actions"><button class="btn primary" onclick="analyzeJD()">AI 分析 JD</button></div></section>${saved?.analysis?jdResult(saved.analysis):''}`}
-function jdResult(a){return `<section class="card" style="margin-top:18px"><div class="section-head"><div><h2>${escapeHtml(a.jobTitle||'岗位分析结果')}</h2><div class="sub">匹配度仅用于自我优化，不代表 ATS 通过率或录用概率。</div></div><strong class="score">${Number(a.matchScore||0)}/100</strong></div><div class="two-col"><div><h3>核心职责</h3><ul>${(a.coreResponsibilities||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>必备条件</h3><ul>${(a.mustHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div><div><h3>加分项</h3><ul>${(a.niceToHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>关键词</h3><p>${(a.keywords||[]).map(escapeHtml).join(' · ')}</p></div></div><div class="match-box"><h3>已匹配</h3><ul>${(a.matchedFacts||[]).map(x=>`<li>🟢 ${escapeHtml(x)}</li>`).join('')}</ul><h3>当前缺失</h3><ul>${(a.missingRequirements||[]).map(x=>`<li>🔴 ${escapeHtml(x)}</li>`).join('')}</ul></div><div class="actions"><button class="btn primary" onclick="generateResumeVersions()">生成 3 版简历</button></div></section>`}
-async function analyzeJD(){const title=document.getElementById('jd-title')?.value.trim()||'',jd=document.getElementById('jd-text')?.value.trim()||'';if(!jd)return toast('请先粘贴招聘 JD');if(!getCurrentAI())return toast('请先在设置里配置一个 AI');const prompt=`你是中文简历分析助手。严格禁止编造事实。分析招聘 JD，并结合职业整理库。缺失技能不得声称拥有。返回严格 JSON：{"jobTitle":"","company":"","coreResponsibilities":[],"mustHave":[],"niceToHave":[],"skills":[],"keywords":[],"matchedFacts":[],"missingRequirements":[],"matchScore":0}。匹配度只用于自我优化。\nJD：${jd}\n职业整理库：${JSON.stringify(profile)}`;try{const analysis=await callAIJSON(prompt);localStorage.setItem(JD_KEY,JSON.stringify({title,jd,analysis,createdAt:new Date().toISOString()}));render();toast('JD 分析完成')}catch(e){toast('JD 分析失败：'+e.message)}}
-function resumesPage(){let h=[];try{h=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{}return `<div class="page-title"><p class="eyebrow">简历</p><h1 style="font-size:42px">生成、修改、保留历史版本。</h1><p class="lead">每次生成都会保存一个独立快照，后续修改职业整理库不会覆盖历史结果。</p></div><section class="card"><h2>最近生成</h2>${h.length?h.map((x,i)=>`<article class="resume-history"><div class="section-head"><div><strong>${escapeHtml(x.jobTitle||x.title||'未命名岗位')}</strong><div class="meta">${escapeHtml(new Date(x.generatedAt).toLocaleString('zh-CN'))}</div></div></div><div class="resume-tabs"><details open><summary>保守版</summary><textarea rows="12">${escapeHtml(x.versions?.conservative||'')}</textarea></details><details><summary>针对性版</summary><textarea rows="12">${escapeHtml(x.versions?.targeted||'')}</textarea></details><details><summary>关键词强化版</summary><textarea rows="12">${escapeHtml(x.versions?.keywordFocused||'')}</textarea></details></div></article>`).join(''):emptyBlock('还没有生成简历','先进入 JD 分析，分析一个岗位后生成 3 个版本。')}</section>`}
-async function generateResumeVersions(){let saved;try{saved=JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{}if(!saved?.jd)return toast('请先分析 JD');if(!getCurrentAI())return toast('请先配置当前 AI');const prompt=`根据职业整理库和招聘JD生成严格真实的三个简历版本：保守版、针对性版、关键词强化版。禁止编造或改变任何公司、职位、日期、客户、技能、工具、数字、职责和成果。缺失要求不得声称拥有。只可重组、压缩和润色已有事实。返回严格 JSON：{"conservative":"","targeted":"","keywordFocused":"","whyChanged":[]}。职业整理库：${JSON.stringify(profile)}\nJD：${saved.jd}\nJD分析：${JSON.stringify(saved.analysis)}`;try{const versions=await callAIJSON(prompt);let h=[];try{h=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{};h.unshift({id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title,jd:saved.jd,generatedAt:new Date().toISOString(),versions});localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));setPage('resumes');toast('3 版简历生成完成')}catch(e){toast('简历生成失败：'+e.message)}}
+function jdPage(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{return null}})();return `<div class="page-title"><p class="eyebrow">JD 分析</p><h1 style="font-size:42px">把招聘 JD 放进来。</h1><p class="lead">能复制就直接粘贴；不能复制的招聘网站，也可以上传 JD 截图，让 AI 识别后再分析。</p></div><section class="card"><div class="form-grid"><div class="field full"><label>岗位名称（可选）</label><input id="jd-title" value="${escapeHtml(saved?.title||'')}" placeholder="例如：外贸业务员"></div><div class="field full"><label>招聘 JD</label><textarea id="jd-text" rows="14" placeholder="把招聘网站上的完整 JD 复制到这里">${escapeHtml(saved?.jd||'')}</textarea></div><div class="field full"><label>或者上传 JD 截图</label><input id="jd-images" class="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple onchange="showJdImageNames(this.files)"><div id="jd-image-names" class="hint">支持多张截图。识别后的文字会保存到本机，之后分析不会重复上传图片。</div></div></div><div class="actions"><button id="jd-ocr-btn" class="btn" onclick="recognizeJDScreenshots()">📷 AI识别截图</button><button id="jd-analyze-btn" class="btn primary" onclick="analyzeJD()">AI 分析 JD</button></div><div id="jd-status" class="hint ai-status"></div></section>${saved?.analysis?jdResult(saved.analysis):''}`}
+function showJdImageNames(files){const el=document.getElementById('jd-image-names');if(el)el.textContent=files?.length?`已选择 ${files.length} 张截图：${[...files].map(x=>x.name).join('、')}`:'支持多张截图。识别后的文字会保存到本机，之后分析不会重复上传图片。';}
+async function fileToImageData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const m=String(r.result).match(/^data:([^;]+);base64,(.*)$/);m?resolve({mimeType:m[1],data:m[2]}):reject(new Error('图片读取失败'));};r.onerror=()=>reject(new Error('图片读取失败'));r.readAsDataURL(file);});}
+async function recognizeJDScreenshots(){const input=document.getElementById('jd-images'),status=document.getElementById('jd-status');if(!input?.files?.length)return toast('请先选择 JD 截图');if(!getCurrentAI())return toast('请先在设置里配置一个 AI');setActionBusy('jd-ocr-btn',true,'⏳ AI正在识别…');setActionBusy('jd-analyze-btn',true,'⏳ 请稍候…');setStatus('jd-status',`⏳ 正在读取 ${input.files.length} 张 JD 截图，请稍候，不要重复点击。`);try{const images=[];for(const f of [...input.files])images.push(await fileToImageData(f));const text=await callAI(getCurrentAI(),`请完整、准确地识别这些招聘 JD 截图中的文字。保持原有顺序和段落结构。不要总结，不要改写，不要补充不存在的内容。只返回识别到的 JD 原文。`,images);if(!text.trim())throw new Error('没有识别到有效文字');document.getElementById('jd-text').value=text.trim();const title=document.getElementById('jd-title')?.value.trim()||'';localStorage.setItem(JD_KEY,JSON.stringify({title,jd:text.trim(),analysis:null,createdAt:new Date().toISOString(),source:'image'}));setStatus('jd-status','✓ JD 截图识别完成。请检查识别文字，确认无误后再点击“AI 分析 JD”。','success');}catch(e){setStatus('jd-status',`❌ 截图识别失败：${friendlyError(e)}`,'error');}finally{setActionBusy('jd-ocr-btn',false);setActionBusy('jd-analyze-btn',false);}}
+function jdResult(a){return `<section class="card" style="margin-top:18px"><div class="section-head"><div><h2>${escapeHtml(a.jobTitle||'岗位分析结果')}</h2><div class="sub">匹配度仅用于自我优化，不代表 ATS 通过率或录用概率。</div></div><strong class="score">${Number(a.matchScore||0)}/100</strong></div><div class="two-col"><div><h3>核心职责</h3><ul>${(a.coreResponsibilities||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>必备条件</h3><ul>${(a.mustHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div><div><h3>加分项</h3><ul>${(a.niceToHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>关键词</h3><p>${(a.keywords||[]).map(escapeHtml).join(' · ')}</p></div></div><div class="match-box"><h3>已匹配</h3><ul>${(a.matchedFacts||[]).map(x=>`<li>🟢 ${escapeHtml(x)}</li>`).join('')}</ul><h3>当前缺失</h3><ul>${(a.missingRequirements||[]).map(x=>`<li>🔴 ${escapeHtml(x)}</li>`).join('')}</ul></div><div class="actions"><button id="resume-generate-btn" class="btn primary" onclick="generateResumeVersions()">生成 3 版简历</button></div><div class="hint ai-status resume-generation-status"></div></section>`}
+async function analyzeJD(){const title=document.getElementById('jd-title')?.value.trim()||'',jd=document.getElementById('jd-text')?.value.trim()||'',status=document.getElementById('jd-status');if(!jd)return toast('请先粘贴 JD 或先识别 JD 截图');if(!getCurrentAI())return toast('请先在设置里配置一个 AI');setActionBusy('jd-analyze-btn',true,'⏳ AI正在分析…');setActionBusy('jd-ocr-btn',true,'⏳ 请稍候…');setStatus('jd-status','⏳ AI正在分析 JD，请稍候，不要重复点击。正在提取岗位职责、任职要求和关键词。');const prompt=`你是中文简历分析助手。严格禁止编造事实。分析招聘 JD，并结合职业整理库。缺失技能不得声称拥有。返回严格 JSON：{"jobTitle":"","company":"","coreResponsibilities":[],"mustHave":[],"niceToHave":[],"skills":[],"keywords":[],"matchedFacts":[],"missingRequirements":[],"matchScore":0}。匹配度只用于自我优化。\nJD：${jd}\n职业整理库：${JSON.stringify(profile)}`;try{const analysis=await callAIJSON(prompt);localStorage.setItem(JD_KEY,JSON.stringify({title,jd,analysis,createdAt:new Date().toISOString()}));render();toast('✓ JD 分析完成');}catch(e){setStatus('jd-status',`❌ JD 分析失败：${friendlyError(e)}`,'error');}finally{setActionBusy('jd-analyze-btn',false);setActionBusy('jd-ocr-btn',false);}}
+function resumesPage(){let h=[];try{h=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{}return `<div class="page-title"><p class="eyebrow">简历</p><h1 style="font-size:42px">生成、修改、保留历史版本。</h1><p class="lead">每次生成都会保存一个独立快照，后续修改职业整理库不会覆盖历史结果。刚生成的 3 个版本会排在最上方。</p></div><section class="card"><h2>最近生成</h2>${h.length?h.map((x,i)=>`<article class="resume-history"><div class="section-head"><div><strong>${escapeHtml(x.jobTitle||x.title||'未命名岗位')}</strong><div class="meta">${escapeHtml(new Date(x.generatedAt).toLocaleString('zh-CN'))}</div></div></div><div class="resume-tabs"><details open><summary>保守版</summary><textarea rows="12">${escapeHtml(x.versions?.conservative||'')}</textarea></details><details><summary>针对性版</summary><textarea rows="12">${escapeHtml(x.versions?.targeted||'')}</textarea></details><details><summary>关键词强化版</summary><textarea rows="12">${escapeHtml(x.versions?.keywordFocused||'')}</textarea></details></div></article>`).join(''):emptyBlock('还没有生成简历','先进入 JD 分析，分析一个岗位后生成 3 个版本。')}</section>`}
+async function generateResumeVersions(){let saved;try{saved=JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{}if(!saved?.jd)return toast('请先分析 JD');if(!getCurrentAI())return toast('请先配置当前 AI');const btn=document.getElementById('resume-generate-btn');if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='⏳ AI正在生成 3 版简历…';}const status=btn?.closest('.card')?.querySelector('.resume-generation-status');if(status){status.innerHTML='✓ 正在分析 JD 与职业经历<br>⏳ 正在生成 Conservative 版本<br>○ 正在生成 Targeted 版本<br>○ 正在生成 Keyword Focused 版本';status.className='hint ai-status resume-generation-status';}const prompt=`根据职业整理库和招聘JD生成严格真实的三个简历版本：保守版、针对性版、关键词强化版。禁止编造或改变任何公司、职位、日期、客户、技能、工具、数字、职责和成果。缺失要求不得声称拥有。只可重组、压缩和润色已有事实。返回严格 JSON：{"conservative":"","targeted":"","keywordFocused":"","whyChanged":[]}。职业整理库：${JSON.stringify(profile)}\nJD：${saved.jd}\nJD分析：${JSON.stringify(saved.analysis)}`;try{const versions=await callAIJSON(prompt);if(!versions?.conservative||!versions?.targeted||!versions?.keywordFocused)throw new Error('AI没有完整返回 3 个简历版本');let h=[];try{h=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{};const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title,jd:saved.jd,generatedAt:new Date().toISOString(),versions};h.unshift(item);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));if(status)status.innerHTML='✓ 3 版简历生成完成<br>已保存到「简历」页面。';setPage('resumes');setTimeout(()=>toast('✓ 3 版简历已生成，已保存到“简历”页面'),50);}catch(e){if(status)status.innerHTML=`❌ 简历生成失败：${escapeHtml(friendlyError(e))}<br><button class="btn" onclick="generateResumeVersions()">重试</button>`;toast(`简历生成失败：${friendlyError(e)}`);}finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent='生成 3 版简历';}}}
 
 function exportProfile(){
   const backup=structuredClone(profile);if(backup.ai)backup.ai.apiKey="";

@@ -2,6 +2,10 @@ const STORAGE_KEY = "careerfit_profile_v2";
 const PAGE_KEY = "careerfit_page_v2";
 const AI_KEY = "careerfit_gemini_api_key_v2";
 const GEMINI_MODEL = "gemini-3.8-flash";
+const AI_CONFIGS_KEY = "careerfit_ai_configs_v5";
+const CURRENT_AI_KEY = "careerfit_current_ai_v5";
+const JD_KEY = "careerfit_jd_v5";
+const RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
 
 const blankProfile = {
   version: 2,
@@ -89,6 +93,8 @@ function render(){
   const app=document.getElementById("app");
   if(currentPage==="home") app.innerHTML=homePage();
   else if(currentPage==="profile") app.innerHTML=profilePage();
+  else if(currentPage==="jd") app.innerHTML=jdPage();
+  else if(currentPage==="resumes") app.innerHTML=resumesPage();
   else app.innerHTML=settingsPage();
   updateNav();
 }
@@ -162,13 +168,15 @@ function simpleList(items,type){
   return `<div class="quick-list">${items.map((x,i)=>`<div class="quick-item"><strong>${escapeHtml(typeof x==="string"?x:(x.title||"未命名"))}</strong><button class="icon-btn" onclick="deleteSimple('${type}',${i})">×</button></div>`).join("")}</div>`;
 }
 function settingsPage(){
-  const hasKey=Boolean(profile.ai?.apiKey||localStorage.getItem(AI_KEY));
-  return `<div class="page-title"><p class="eyebrow">设置</p><h1 style="font-size:42px">AI 和数据设置</h1><p class="lead">CareerFit 默认把职业资料保存在你的浏览器中。只有你主动点击 AI 功能时，相关文字才会发送给 Gemini。</p></div>
-  <div class="two-col">
-    <section class="card"><h2>AI 设置</h2><p class="small-note">第一版 AI 使用 Google Gemini。你需要自己的 API Key。</p><div class="field"><label>Gemini API Key</label><input id="gemini-api-key" type="password" value="${escapeHtml(profile.ai?.apiKey||localStorage.getItem(AI_KEY)||"")}" placeholder="粘贴你的 Gemini API Key"></div><div class="actions"><button class="btn primary" onclick="saveAiSettings()">保存</button><button class="btn" onclick="testAiConnection()">测试连接</button></div><div class="hint" style="margin-top:10px">状态：${hasKey?"已保存":"尚未设置"}。API Key 只保存在当前浏览器，不会进入导出的职业档案。</div></section>
-    <section class="card"><h2>导出职业整理库</h2><p class="small-note">导出工作经历、项目、证书、技能和已读取的简历原文，方便备份或换设备后导入。</p><button class="btn primary" onclick="exportProfile()">导出 JSON</button></section>
+  const configs=loadAIConfigs(), current=getCurrentAI();
+  return `<div class="page-title"><p class="eyebrow">设置</p><h1 style="font-size:42px">AI 和数据设置</h1><p class="lead">你自己选择 AI、提供自己的 API。CareerFit 默认只在本机保存职业资料和 AI 配置。</p></div>
+  <section class="card"><div class="section-head"><div><h2>我的 AI</h2><div class="sub">可同时配置多个 API，额度用完后手动切换，不会偷偷把数据发送给另一个 AI。</div></div><button class="btn primary" onclick="openAIConfigModal()">＋添加 AI</button></div>
+  <div class="ai-list">${configs.length?configs.map(aiConfigCard).join(""):emptyBlock("还没有配置 AI","添加一个你自己拥有 API Key 的 AI 服务即可开始。")}</div></section>
+  <div class="two-col" style="margin-top:18px">
+    <section class="card"><h2>导出职业整理库</h2><p class="small-note">导出工作经历、项目、证书、技能和已读取的简历原文。API Key 不会进入职业资料导出。</p><button class="btn primary" onclick="exportProfile()">导出 JSON</button></section>
     <section class="card"><h2>导入职业整理库</h2><p class="small-note">恢复以前导出的 CareerFit JSON。</p><input id="import-file" class="file-input" type="file" accept=".json,application/json" onchange="importProfile(this.files[0])"></section>
-    <section class="card"><h2>数据隐私</h2><p class="small-note">PDF / DOCX 先在浏览器中提取文字并保存在本机。使用 AI 分析、润色或提取技能时，相关文字才会发送到 Gemini API。</p></section>
+    <section class="card"><h2>数据隐私</h2><p class="small-note">简历和职业资料默认保存在你的浏览器本地。只有你主动使用 AI 功能时，相关内容才会发送到你选择的第三方 API。CareerFit 本身不建立用户职业资料数据库。</p></section>
+    <section class="card"><h2>当前 AI</h2><p class="small-note">${current?`当前使用：<strong>${escapeHtml(current.name)}</strong><br>${escapeHtml(current.model)}`:'尚未选择 AI'}</p></section>
   </div>`;
 }
 
@@ -362,24 +370,58 @@ function chooseSourceDocument(title){
   });
 }
 
-function getApiKey(){return profile.ai?.apiKey||localStorage.getItem(AI_KEY)||"";}
-async function callGeminiJSON(prompt){
-  const key=getApiKey();
-  const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:"application/json"}})});
-  if(!response.ok){let msg="Gemini 请求失败";try{const e=await response.json();msg=e?.error?.message||msg;}catch{}throw new Error(msg);}
-  const data=await response.json();const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"";if(!text)throw new Error("Gemini 没有返回可用内容");
-  try{return JSON.parse(text);}catch{return JSON.parse(text.replace(/^```json\s*/i,"").replace(/```$/i,"").trim());}
+function loadAIConfigs(){
+  try{return JSON.parse(localStorage.getItem(AI_CONFIGS_KEY)||"[]")}catch{return []}
 }
-function saveAiSettings(){
-  const key=document.getElementById("gemini-api-key")?.value.trim()||"";
-  profile.ai={...(profile.ai||{}),provider:"gemini",apiKey:key};
-  if(key)localStorage.setItem(AI_KEY,key);else localStorage.removeItem(AI_KEY);
-  saveProfile();toast(key?"AI 设置已保存":"API Key 已移除");
+function saveAIConfigs(items){localStorage.setItem(AI_CONFIGS_KEY,JSON.stringify(items));}
+function getCurrentAI(){const id=localStorage.getItem(CURRENT_AI_KEY)||"";return loadAIConfigs().find(x=>x.id===id)||loadAIConfigs()[0]||null;}
+function getApiKey(){return getCurrentAI()?.apiKey||profile.ai?.apiKey||localStorage.getItem(AI_KEY)||"";}
+function aiConfigCard(c){const current=getCurrentAI()?.id===c.id;return `<article class="ai-card"><div><h3>${escapeHtml(c.name||"未命名 AI")}</h3><div class="meta">${escapeHtml(c.model||"未填写模型")} · ${escapeHtml(c.apiType||"OpenAI Compatible")}</div><div class="small-note">${current?"🟢 当前使用":"⚪ 可切换"}</div></div><div class="actions compact"><button class="btn" onclick="testAIConfig('${c.id}')">测试</button>${current?'':`<button class="btn" onclick="setCurrentAI('${c.id}')">设为当前</button>`}<button class="btn" onclick="openAIConfigModal('${c.id}')">编辑</button><button class="btn danger" onclick="deleteAIConfig('${c.id}')">删除</button></div></article>`}
+function openAIConfigModal(id=null){
+  const old=id?loadAIConfigs().find(x=>x.id===id):null;
+  const c=old||{id:crypto.randomUUID(),name:"",apiType:"OpenAI Compatible",baseUrl:"",apiKey:"",model:""};
+  openModal(id?"编辑 AI 配置":"添加 AI 配置",`<form class="form-grid" onsubmit="saveAIConfig(event,'${c.id}',${id?'true':'false'})">
+    <div class="field full"><label>配置名称 *</label><input id="ai-name" value="${escapeHtml(c.name)}" placeholder="例如：智谱-主账号" required></div>
+    <div class="field"><label>API 类型</label><select id="ai-type"><option ${c.apiType==='OpenAI Compatible'?'selected':''}>OpenAI Compatible</option><option ${c.apiType==='Gemini'?'selected':''}>Gemini</option><option ${c.apiType==='Anthropic'?'selected':''}>Anthropic</option><option ${c.apiType==='自定义'?'selected':''}>自定义</option></select></div>
+    <div class="field"><label>API 格式</label><select id="ai-format"><option selected>OpenAI Compatible</option><option>Gemini</option><option>Anthropic</option></select></div>
+    <div class="field full"><label>API Base URL *</label><input id="ai-base" value="${escapeHtml(c.baseUrl)}" placeholder="例如：https://open.bigmodel.cn/api/paas/v4" required></div>
+    <div class="field full"><label>API Key *</label><input id="ai-key" type="password" value="${escapeHtml(c.apiKey)}" placeholder="只保存在当前浏览器" required></div>
+    <div class="field full"><label>Model *</label><input id="ai-model" value="${escapeHtml(c.model)}" placeholder="例如：glm-4.5-flash" required></div>
+    <div class="hint field full">API Key 不会进入职业整理库的普通 JSON 导出。请不要把 Key 发到聊天或截图里。</div>
+    <div class="actions field full"><button type="button" class="btn" onclick="testAIConfigFromForm()">测试连接</button><button type="submit" class="btn primary">保存</button></div>
+  </form>`);
+  window.__aiEditingId=c.id;
 }
-async function testAiConnection(){
-  const key=document.getElementById("gemini-api-key")?.value.trim()||getApiKey();if(!key){toast("请先填写 Gemini API Key");return;}
-  try{const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({contents:[{parts:[{text:"只回复：连接成功"}]}]})});if(!response.ok){const e=await response.json().catch(()=>({}));throw new Error(e?.error?.message||"连接失败");}toast("Gemini 连接成功");}catch(err){toast(`连接失败：${err.message}`);}
+function getAIConfigFromForm(){return {id:window.__aiEditingId,name:document.getElementById('ai-name')?.value.trim()||'',apiType:document.getElementById('ai-type')?.value||'OpenAI Compatible',apiFormat:document.getElementById('ai-format')?.value||'OpenAI Compatible',baseUrl:document.getElementById('ai-base')?.value.trim()||'',apiKey:document.getElementById('ai-key')?.value.trim()||'',model:document.getElementById('ai-model')?.value.trim()||''};}
+async function testAIConfigFromForm(){try{const c=getAIConfigFromForm();await callAI(c,'只回复：连接成功');toast('✓ 连接成功');}catch(e){toast('✕ 连接失败：'+e.message);}}
+function saveAIConfig(event,id,isEdit){event.preventDefault();const c=getAIConfigFromForm();if(!c.name||!c.baseUrl||!c.apiKey||!c.model)return toast('请完整填写 AI 配置');let arr=loadAIConfigs();const i=arr.findIndex(x=>x.id===id);if(i>=0)arr[i]=c;else arr.push(c);saveAIConfigs(arr);if(!localStorage.getItem(CURRENT_AI_KEY))localStorage.setItem(CURRENT_AI_KEY,c.id);closeModal();render();toast('AI 配置已保存');}
+function setCurrentAI(id){if(loadAIConfigs().some(x=>x.id===id)){localStorage.setItem(CURRENT_AI_KEY,id);toast('已切换当前 AI');render();}}
+function deleteAIConfig(id){const arr=loadAIConfigs(),c=arr.find(x=>x.id===id);if(!c)return;if(!confirm(`确定删除“${c.name}”吗？只删除 AI 配置，不会删除职业资料。`))return;const next=arr.filter(x=>x.id!==id);saveAIConfigs(next);if(localStorage.getItem(CURRENT_AI_KEY)===id)localStorage.setItem(CURRENT_AI_KEY,next[0]?.id||'');render();}
+async function testAIConfig(id){const c=loadAIConfigs().find(x=>x.id===id);if(!c)return;try{const a=await callAI(c,'只回复：连接成功');toast('✓ '+(a||'连接成功'));}catch(e){toast('✕ 连接失败：'+e.message);}}
+async function callAI(config,prompt){
+  if(!config?.apiKey||!config?.baseUrl||!config?.model)throw new Error('当前 AI 配置不完整');
+  const type=config.apiFormat||config.apiType||'OpenAI Compatible';
+  if(type==='Gemini'){
+    const base=config.baseUrl.replace(/\/+$/,'');const url=/generateContent$/.test(base)?base:`${base}/models/${config.model}:generateContent`;
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':config.apiKey},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+    const t=await r.text();if(!r.ok)throw new Error(t.slice(0,300));const d=JSON.parse(t);return d?.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';
+  }
+  const base=config.baseUrl.replace(/\/+$/,'');const url=/chat\/completions$/.test(base)?base:`${base}/chat/completions`;
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:config.model,messages:[{role:'user',content:prompt}],temperature:.2})});
+  const t=await r.text();if(!r.ok)throw new Error(`API ${r.status}: ${t.slice(0,300)}`);const d=JSON.parse(t);return d?.choices?.[0]?.message?.content||d?.output_text||'';
 }
+async function callAIJSON(prompt){const raw=await callAI(getCurrentAI(),prompt);try{return JSON.parse(raw)}catch{const cleaned=raw.replace(/^```json\s*/i,'').replace(/```$/i,'').trim();return JSON.parse(cleaned);}}
+async function callGeminiJSON(prompt){return callAIJSON(prompt)}
+function saveAiSettings(){toast('V5 已改为多 AI 配置，请使用“＋添加 AI”');}
+async function testAiConnection(){const c=getCurrentAI();if(!c)return toast('请先添加 AI 配置');try{await callAI(c,'只回复：连接成功');toast('✓ 当前 AI 连接成功')}catch(e){toast('✕ 连接失败：'+e.message);}}
+
+
+function jdPage(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{return null}})();return `<div class="page-title"><p class="eyebrow">JD 分析</p><h1 style="font-size:42px">把招聘 JD 复制过来。</h1><p class="lead">先分析岗位要求，再与你的职业整理库匹配。AI 不会为你虚构不存在的经历。</p></div><section class="card"><div class="form-grid"><div class="field full"><label>岗位名称（可选）</label><input id="jd-title" value="${escapeHtml(saved?.title||'')}" placeholder="例如：外贸业务员"></div><div class="field full"><label>招聘 JD *</label><textarea id="jd-text" rows="16" placeholder="把招聘网站上的完整 JD 复制到这里">${escapeHtml(saved?.jd||'')}</textarea></div></div><div class="actions"><button class="btn primary" onclick="analyzeJD()">AI 分析 JD</button></div></section>${saved?.analysis?jdResult(saved.analysis):''}`}
+function jdResult(a){return `<section class="card" style="margin-top:18px"><div class="section-head"><div><h2>${escapeHtml(a.jobTitle||'岗位分析结果')}</h2><div class="sub">匹配度仅用于自我优化，不代表 ATS 通过率或录用概率。</div></div><strong class="score">${Number(a.matchScore||0)}/100</strong></div><div class="two-col"><div><h3>核心职责</h3><ul>${(a.coreResponsibilities||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>必备条件</h3><ul>${(a.mustHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div><div><h3>加分项</h3><ul>${(a.niceToHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>关键词</h3><p>${(a.keywords||[]).map(escapeHtml).join(' · ')}</p></div></div><div class="match-box"><h3>已匹配</h3><ul>${(a.matchedFacts||[]).map(x=>`<li>🟢 ${escapeHtml(x)}</li>`).join('')}</ul><h3>当前缺失</h3><ul>${(a.missingRequirements||[]).map(x=>`<li>🔴 ${escapeHtml(x)}</li>`).join('')}</ul></div><div class="actions"><button class="btn primary" onclick="generateResumeVersions()">生成 3 版简历</button></div></section>`}
+async function analyzeJD(){const title=document.getElementById('jd-title')?.value.trim()||'',jd=document.getElementById('jd-text')?.value.trim()||'';if(!jd)return toast('请先粘贴招聘 JD');if(!getCurrentAI())return toast('请先在设置里配置一个 AI');const prompt=`你是中文简历分析助手。严格禁止编造事实。分析招聘 JD，并结合职业整理库。缺失技能不得声称拥有。返回严格 JSON：{"jobTitle":"","company":"","coreResponsibilities":[],"mustHave":[],"niceToHave":[],"skills":[],"keywords":[],"matchedFacts":[],"missingRequirements":[],"matchScore":0}。匹配度只用于自我优化。\nJD：${jd}\n职业整理库：${JSON.stringify(profile)}`;try{const analysis=await callAIJSON(prompt);localStorage.setItem(JD_KEY,JSON.stringify({title,jd,analysis,createdAt:new Date().toISOString()}));render();toast('JD 分析完成')}catch(e){toast('JD 分析失败：'+e.message)}}
+function resumesPage(){let h=[];try{h=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{}return `<div class="page-title"><p class="eyebrow">简历</p><h1 style="font-size:42px">生成、修改、保留历史版本。</h1><p class="lead">每次生成都会保存一个独立快照，后续修改职业整理库不会覆盖历史结果。</p></div><section class="card"><h2>最近生成</h2>${h.length?h.map((x,i)=>`<article class="resume-history"><div class="section-head"><div><strong>${escapeHtml(x.jobTitle||x.title||'未命名岗位')}</strong><div class="meta">${escapeHtml(new Date(x.generatedAt).toLocaleString('zh-CN'))}</div></div></div><div class="resume-tabs"><details open><summary>保守版</summary><textarea rows="12">${escapeHtml(x.versions?.conservative||'')}</textarea></details><details><summary>针对性版</summary><textarea rows="12">${escapeHtml(x.versions?.targeted||'')}</textarea></details><details><summary>关键词强化版</summary><textarea rows="12">${escapeHtml(x.versions?.keywordFocused||'')}</textarea></details></div></article>`).join(''):emptyBlock('还没有生成简历','先进入 JD 分析，分析一个岗位后生成 3 个版本。')}</section>`}
+async function generateResumeVersions(){let saved;try{saved=JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{}if(!saved?.jd)return toast('请先分析 JD');if(!getCurrentAI())return toast('请先配置当前 AI');const prompt=`根据职业整理库和招聘JD生成严格真实的三个简历版本：保守版、针对性版、关键词强化版。禁止编造或改变任何公司、职位、日期、客户、技能、工具、数字、职责和成果。缺失要求不得声称拥有。只可重组、压缩和润色已有事实。返回严格 JSON：{"conservative":"","targeted":"","keywordFocused":"","whyChanged":[]}。职业整理库：${JSON.stringify(profile)}\nJD：${saved.jd}\nJD分析：${JSON.stringify(saved.analysis)}`;try{const versions=await callAIJSON(prompt);let h=[];try{h=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{};h.unshift({id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title,jd:saved.jd,generatedAt:new Date().toISOString(),versions});localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));setPage('resumes');toast('3 版简历生成完成')}catch(e){toast('简历生成失败：'+e.message)}}
+
 function exportProfile(){
   const backup=structuredClone(profile);if(backup.ai)backup.ai.apiKey="";
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`careerfit-profile-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);toast("职业整理库已导出");

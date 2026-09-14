@@ -1,47 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#111827">
-  <meta name="description" content="CareerFit — build your career profile and tailor your resume for every opportunity.">
+  <meta name="description" content="CareerFit——整理真实职业经历，让 AI 帮你为不同机会生成更匹配的简历。">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="style.css">
-  <title>CareerFit</title>
+  <title>CareerFit · 职业整理库</title>
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <button class="brand" data-page="home" aria-label="CareerFit home">
-        <span class="brand-mark">CF</span>
-        <span>CareerFit</span>
-      </button>
-      <nav class="desktop-nav" aria-label="Main navigation">
-        <button data-page="home" class="nav-btn active">Home</button>
-        <button data-page="profile" class="nav-btn">My Career Profile</button>
-        <button data-page="settings" class="nav-btn">Settings</button>
+      <button class="brand" data-page="home" aria-label="CareerFit 首页"><span class="brand-mark">CF</span><span>CareerFit</span></button>
+      <nav class="desktop-nav" aria-label="主导航">
+        <button data-page="home" class="nav-btn active">首页</button>
+        <button data-page="profile" class="nav-btn">职业整理库</button>
+        <button data-page="settings" class="nav-btn">设置</button>
       </nav>
     </header>
-
     <main id="app" class="main"></main>
-
-    <nav class="mobile-nav" aria-label="Mobile navigation">
-      <button data-page="home" class="mobile-nav-btn active"><span>⌂</span><small>Home</small></button>
-      <button data-page="profile" class="mobile-nav-btn"><span>◉</span><small>Profile</small></button>
-      <button data-page="settings" class="mobile-nav-btn"><span>⚙</span><small>Settings</small></button>
+    <nav class="mobile-nav" aria-label="移动端导航">
+      <button data-page="home" class="mobile-nav-btn active"><span>⌂</span><small>首页</small></button>
+      <button data-page="profile" class="mobile-nav-btn"><span>◉</span><small>职业库</small></button>
+      <button data-page="settings" class="mobile-nav-btn"><span>⚙</span><small>设置</small></button>
     </nav>
   </div>
-
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
   <script src="app.js"></script>
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js").catch(() => {}));
-    }
-  </script>
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{}));}</script>
 </body>
 </html>

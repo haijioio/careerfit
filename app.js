@@ -8,7 +8,6 @@ const JD_KEY = "careerfit_jd_v5";
 const RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
 const AI_STATUS_KEY = "careerfit_ai_status_v51";
 const REBUILD_PLAN_VERSION = "v5.5";
-const RESUME_SELECTED_KEY = "careerfit_resume_selected_v5";
 
 const blankProfile = {
   version: 2,
@@ -64,6 +63,25 @@ function escapeHtml(value=""){
   return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 }
 function normalizeKey(v){ return String(v||"").toLowerCase().replace(/\s+/g," ").trim(); }
+function safeAIText(value){
+  if(value===null||value===undefined)return "";
+  if(typeof value==='string'||typeof value==='number'||typeof value==='boolean')return escapeHtml(String(value));
+  if(Array.isArray(value))return value.map(safeAIText).filter(Boolean).join(" · ");
+  if(typeof value==='object'){
+    const preferred=['fact','source','change','reason','action','requirement','capability','evidence','text','label','name'];
+    const parts=[];
+    preferred.forEach(k=>{if(value[k]!==undefined&&value[k]!==null&&String(value[k]).trim()!=='')parts.push(`${escapeHtml(k)}：${safeAIText(value[k])}`)});
+    if(parts.length)return parts.join('；');
+    return Object.values(value).map(safeAIText).filter(Boolean).join('；');
+  }
+  return escapeHtml(String(value));
+}
+function evidenceText(value){
+  if(typeof value==='string')return value;
+  if(!value||typeof value!=='object')return String(value||'');
+  return [value.fact,value.source].filter(Boolean).join('｜');
+}
+
 function uniqueStrings(items){
   const seen=new Set();
   return (items||[]).map(v=>String(v||"").trim()).filter(v=>v&&!seen.has(normalizeKey(v))&&seen.add(normalizeKey(v)));
@@ -436,28 +454,6 @@ function levelBadge(level){
   if(v.includes('partial')||v.includes('部分')||v.includes('medium')||v.includes('中')) return '<span class="fit-badge medium">🟡 部分匹配</span>';
   return '<span class="fit-badge low">🔴 当前缺口</span>';
 }
-function renderAIValue(value){
-  if(value==null)return '';
-  if(typeof value==='string'||typeof value==='number'||typeof value==='boolean')return escapeHtml(String(value));
-  if(Array.isArray(value))return value.map(renderAIValue).filter(Boolean).join('、');
-  if(typeof value==='object'){
-    const preferred=['text','fact','evidence','source','reason','change','action','requirement','capability','behavior','context'];
-    const parts=[];
-    preferred.forEach(k=>{if(value[k]!=null&&String(value[k]).trim())parts.push(`<span class="ai-object-key">${escapeHtml(k)}</span>${renderAIValue(value[k])}`)});
-    if(parts.length)return parts.join(' · ');
-    return escapeHtml(Object.entries(value).map(([k,v])=>`${k}: ${typeof v==='object'?JSON.stringify(v):v}`).join(' · '));
-  }
-  return escapeHtml(String(value));
-}
-function renderWhyItem(item){
-  if(typeof item==='string')return `<li>${escapeHtml(item)}</li>`;
-  if(item&&typeof item==='object'){
-    const title=item.change||item.action||item.capability||item.requirement||item.text||'本次调整';
-    const reason=item.reason||item.evidence||item.source||item.context||'';
-    return `<li><strong>${escapeHtml(String(title))}</strong>${reason?`<div class="why-reason">${renderAIValue(reason)}</div>`:''}</li>`;
-  }
-  return `<li>${renderAIValue(item)}</li>`;
-}
 function renderRebuildPlan(plan){
   if(!plan)return '';
   const reqs=Array.isArray(plan.requirements)?plan.requirements:[];
@@ -465,13 +461,13 @@ function renderRebuildPlan(plan){
   const order=Array.isArray(plan.priorityOrder)?plan.priorityOrder:[];
   return `<div class="rebuild-plan">
     <div class="section-head"><div><p class="eyebrow">简历重构方案</p><h3>先证明“为什么适合”，再开始写简历</h3></div><span class="plan-badge">${escapeHtml(REBUILD_PLAN_VERSION)}</span></div>
-    ${reqs.length?`<div class="requirement-map">${reqs.map((r,i)=>`<article class="requirement-item"><div class="requirement-head"><strong>${escapeHtml(r.requirement||r.capability||`岗位要求 ${i+1}`)}</strong>${levelBadge(r.matchLevel||r.level)}</div><div class="meta">优先级：${renderAIValue(r.priority||'中')}</div>${Array.isArray(r.evidence)&&r.evidence.length?`<ul>${r.evidence.slice(0,4).map(e=>`<li>✓ ${renderAIValue(e)}</li>`).join('')}</ul>`:'<p class="small-note">暂无职业库真实证据。</p>'}${r.action?`<p class="plan-action">重构动作：${renderAIValue(r.action)}</p>`:''}</article>`).join('')}</div>`:''}
-    ${order.length?`<div class="plan-section"><h3>简历重点排序</h3><ol>${order.slice(0,8).map(x=>`<li>${renderAIValue(x)}</li>`).join('')}</ol></div>`:''}
-    ${strategies.length?`<div class="plan-section"><h3>本次重构策略</h3><ul>${strategies.slice(0,8).map(x=>`<li>${renderAIValue(x)}</li>`).join('')}</ul></div>`:''}
-    ${Array.isArray(plan.gaps)&&plan.gaps.length?`<div class="plan-section gap-section"><h3>明确缺口</h3><ul>${plan.gaps.slice(0,8).map(x=>`<li>🔴 ${renderAIValue(x)}</li>`).join('')}</ul><div class="hint">这些能力不会因为 JD 有要求就被强行写进简历。</div></div>`:''}
+    ${reqs.length?`<div class="requirement-map">${reqs.map((r,i)=>`<article class="requirement-item"><div class="requirement-head"><strong>${safeAIText(r.requirement||`岗位要求 ${i+1}`)}</strong>${levelBadge(r.matchLevel||r.level)}</div><div class="meta">优先级：${safeAIText(r.priority||'中')}</div>${Array.isArray(r.evidence)&&r.evidence.length?`<ul>${r.evidence.slice(0,4).map(e=>`<li>✓ ${safeAIText(evidenceText(e))}</li>`).join('')}</ul>`:'<p class="small-note">暂无职业库真实证据。</p>'}${r.action?`<p class="plan-action">重构动作：${safeAIText(r.action)}</p>`:''}</article>`).join('')}</div>`:''}
+    ${order.length?`<div class="plan-section"><h3>简历重点排序</h3><ol>${order.slice(0,8).map(x=>`<li>${safeAIText(x)}</li>`).join('')}</ol></div>`:''}
+    ${strategies.length?`<div class="plan-section"><h3>本次重构策略</h3><ul>${strategies.slice(0,8).map(x=>`<li>${safeAIText(x)}</li>`).join('')}</ul></div>`:''}
+    ${Array.isArray(plan.gaps)&&plan.gaps.length?`<div class="plan-section gap-section"><h3>明确缺口</h3><ul>${plan.gaps.slice(0,8).map(x=>`<li>🔴 ${safeAIText(x)}</li>`).join('')}</ul><div class="hint">这些能力不会因为 JD 有要求就被强行写进简历。</div></div>`:''}
   </div>`;
 }
-function jdResult(a){return `<section class="card" style="margin-top:18px"><div class="section-head"><div><h2>${escapeHtml(a.jobTitle||'岗位分析结果')}</h2><div class="sub">匹配度仅用于自我优化，不代表 ATS 通过率或录用概率。</div></div><strong class="score">${Number(a.matchScore||0)}/100</strong></div><div class="two-col"><div><h3>核心职责</h3><ul>${(a.coreResponsibilities||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>必备条件</h3><ul>${(a.mustHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div><div><h3>加分项</h3><ul>${(a.niceToHave||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul><h3>关键词</h3><p>${(a.keywords||[]).map(escapeHtml).join(' · ')}</p></div></div><div class="match-box"><h3>匹配证据</h3><ul>${(a.matchedFacts||[]).map(x=>`<li>🟢 ${escapeHtml(x)}</li>`).join('')}</ul><h3>当前缺口</h3><ul>${(a.missingRequirements||[]).map(x=>`<li>🔴 ${escapeHtml(x)}</li>`).join('')}</ul></div>${renderRebuildPlan(a.rebuildPlan||a.restructurePlan)}<div class="actions"><button id="resume-generate-btn" class="btn primary" onclick="generateResumeVersions()">开始按此方案重构简历</button></div><div class="hint ai-status resume-generation-status"></div></section>`}
+function jdResult(a){return `<section class="card" style="margin-top:18px"><div class="section-head"><div><h2>${safeAIText(a.jobTitle||'岗位分析结果')}</h2><div class="sub">匹配度仅用于自我优化，不代表 ATS 通过率或录用概率。</div></div><strong class="score">${Number(a.matchScore||0)}/100</strong></div><div class="two-col"><div><h3>核心职责</h3><ul>${(a.coreResponsibilities||[]).map(x=>`<li>${safeAIText(x)}</li>`).join('')}</ul><h3>必备条件</h3><ul>${(a.mustHave||[]).map(x=>`<li>${safeAIText(x)}</li>`).join('')}</ul></div><div><h3>加分项</h3><ul>${(a.niceToHave||[]).map(x=>`<li>${safeAIText(x)}</li>`).join('')}</ul><h3>关键词</h3><p>${(a.keywords||[]).map(safeAIText).join(' · ')}</p></div></div><div class="match-box"><h3>匹配证据</h3><ul>${(a.matchedFacts||[]).map(x=>`<li>🟢 ${safeAIText(evidenceText(x))}</li>`).join('')}</ul><h3>当前缺口</h3><ul>${(a.missingRequirements||[]).map(x=>`<li>🔴 ${safeAIText(x)}</li>`).join('')}</ul></div>${renderRebuildPlan(a.rebuildPlan||a.restructurePlan)}<div class="actions"><button id="resume-generate-btn" class="btn primary" onclick="generateResumeVersions()">开始按此方案重构简历</button></div><div class="hint ai-status resume-generation-status"></div></section>`}
 
 async function analyzeJD(){
   const title=document.getElementById('jd-title')?.value.trim()||'',jd=document.getElementById('jd-text')?.value.trim()||'',status=document.getElementById('jd-status');
@@ -522,7 +518,7 @@ function normalizeStructuredResume(raw){
   };
 }
 function resumePlainText(r){
-  const p=r.personal||{};const lines=[p.name||'',p.headline||'', [p.email,p.phone,p.location].filter(Boolean).join(' | '),'', '综合评价',r.summary||''];
+  const p=r.personal||{};const lines=[[p.name,p.headline].filter(Boolean).join(' · '), [p.email,p.phone,p.location].filter(Boolean).join(' | '),'', '综合评价',r.summary||''];
   if(r.projects?.length){lines.push('','项目经历');r.projects.forEach(x=>{lines.push(`${x.title}  ${x.date}`,...(x.bullets||[]).map(b=>'• '+b));});}
   if(r.experiences?.length){lines.push('','工作经历');r.experiences.forEach(x=>{lines.push(`${x.company}  ${x.position}  ${x.date}`,...(x.bullets||[]).map(b=>'• '+b));});}
   if(r.education?.length){lines.push('','教育背景');r.education.forEach(x=>lines.push(x.raw||[x.school,x.degree,x.start&&x.end?`${x.start}—${x.end}`:''].filter(Boolean).join(' | ')));}
@@ -532,7 +528,7 @@ function resumePlainText(r){
 }
 function renderResumePaper(r){
   const p=r.personal||{};
-  return `<div class="resume-paper"><header class="resume-paper-head"><h2>${resumeEscapeText(p.name||'未填写姓名')}</h2><div class="resume-headline">${resumeEscapeText(p.headline||'')}</div><div class="resume-contact">${[p.email,p.phone,p.location].filter(Boolean).map(resumeEscapeText).join(' · ')}</div></header>
+  return `<div class="resume-paper"><header class="resume-paper-head">${p.name?`<h2>${resumeEscapeText(p.name)}</h2>`:''}<div class="resume-headline">${resumeEscapeText(p.headline||'')}</div><div class="resume-contact">${[p.email,p.phone,p.location].filter(Boolean).map(resumeEscapeText).join(' · ')}</div></header>
   ${r.summary?`<section class="resume-section"><h3>综合评价</h3><p>${resumeEscapeText(r.summary)}</p></section>`:''}
   ${r.projects?.length?`<section class="resume-section"><h3>项目经历</h3>${r.projects.map(x=>`<article class="resume-entry"><div class="resume-entry-head"><strong>${resumeEscapeText(x.title)}</strong><span>${resumeEscapeText(x.date)}</span></div><ul>${(x.bullets||[]).map(b=>`<li>${resumeEscapeText(b)}</li>`).join('')}</ul></article>`).join('')}</section>`:''}
   ${r.experiences?.length?`<section class="resume-section"><h3>工作经历</h3>${r.experiences.map(x=>`<article class="resume-entry"><div class="resume-entry-head"><div><strong>${resumeEscapeText(x.company)}</strong><span class="resume-position">${resumeEscapeText(x.position)}</span></div><span>${resumeEscapeText(x.date)}</span></div><ul>${(x.bullets||[]).map(b=>`<li>${resumeEscapeText(b)}</li>`).join('')}</ul></article>`).join('')}</section>`:''}
@@ -550,34 +546,29 @@ function loadResumeHistory(){try{return JSON.parse(localStorage.getItem(RESUME_H
 function saveResumeEdit(e,id,key){e.preventDefault();const h=loadResumeHistory(),item=h.find(x=>x.id===id),r=item?.versions?.[key];if(!r)return; r.summary=document.getElementById('re-summary')?.value.trim()||'';(r.experiences||[]).forEach((x,i)=>{const el=document.getElementById(`re-${i}`);if(el)x.bullets=el.value.split(/\n+/).map(v=>v.trim()).filter(Boolean);});item.versions[key]=normalizeStructuredResume(r);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));closeModal();render();toast('简历已保存修改');}
 function copyResume(id,key){const item=loadResumeHistory().find(x=>x.id===id);const r=item?.versions?.[key];if(!r)return;navigator.clipboard?.writeText(resumePlainText(r)).then(()=>toast('已复制简历纯文本')).catch(()=>toast('复制失败，请检查浏览器权限'));}
 function printResume(id,key){const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;const w=window.open('','_blank');if(!w)return;w.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${resumeEscapeText(item.jobTitle||'CareerFit 简历')}</title><style>body{margin:0;background:#eee;font-family:Arial,'Microsoft YaHei',sans-serif}.resume-paper{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm;box-sizing:border-box;color:#111;line-height:1.55}.resume-paper-head{text-align:center;border-bottom:2px solid #111;padding-bottom:12px}.resume-paper-head h2{margin:0;font-size:25px}.resume-headline{font-size:14px;margin-top:5px}.resume-contact{font-size:11px;color:#555;margin-top:5px}.resume-section{margin-top:17px}.resume-section h3{font-size:15px;border-bottom:1px solid #ccc;padding-bottom:5px;margin:0 0 9px}.resume-section p{margin:0;font-size:12px}.resume-entry{margin:0 0 12px}.resume-entry-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.resume-position{margin-left:8px;font-weight:400}.resume-entry ul{margin:5px 0 0;padding-left:18px;font-size:11.5px}.resume-entry li{margin:3px 0}.resume-fixed-line{display:flex;gap:18px;font-size:12px;margin:6px 0}</style></head><body>${renderResumePaper(r)}<script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();}
-function openResumeHistory(id){localStorage.setItem(RESUME_SELECTED_KEY,id);setPage('resumes');}
-function closeResumeHistory(){localStorage.removeItem(RESUME_SELECTED_KEY);setPage('resumes');}
-function resumeHistoryCard(x){
-  const title=x.jobTitle||x.title||'未命名岗位';
-  const dt=x.generatedAt?new Date(x.generatedAt).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'未知时间';
-  const count=['conservative','targeted','keywordFocused'].filter(k=>x.versions?.[k]).length;
-  const score=x.analysis?.matchScore??x.matchScore;
-  const strategies=Array.isArray(x.rebuildPlan?.restructureStrategy)?x.rebuildPlan.restructureStrategy:[];
-  return `<button class="resume-record" onclick="openResumeHistory('${x.id}')"><div><strong>${escapeHtml(title)}</strong><div class="resume-record-meta">${escapeHtml(dt)}${x.status==='partial'?' · 部分完成':''}</div></div><div class="resume-record-right">${score!=null?`<span class="resume-score">${Number(score)||0}</span>`:''}<span>${count}/3 版</span><span class="resume-arrow">→</span></div>${strategies.length?`<div class="resume-record-tags">${strategies.slice(0,3).map(renderAIValue).map(x=>`<span>${x}</span>`).join('')}</div>`:''}</button>`;
+function renderWhyChanged(items){
+  if(!Array.isArray(items)||!items.length)return '';
+  return `<div class="match-box why-changed"><h3>为什么这样修改</h3><ul>${items.slice(0,8).map(x=>{
+    if(x&&typeof x==='object'){
+      const change=x.change||x.action||x.title||x.fact||'';
+      const reason=x.reason||x.explanation||x.source||'';
+      return `<li>${change?`<strong>${safeAIText(change)}</strong>`:''}${reason?`<div>${safeAIText(reason)}</div>`:(!change?safeAIText(x):'')}</li>`;
+    }
+    return `<li>${safeAIText(x)}</li>`;
+  }).join('')}</ul></div>`;
 }
-function renderResumeDetail(item){
-  const title=item.jobTitle||item.title||'未命名岗位';
-  const dt=item.generatedAt?new Date(item.generatedAt).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-  const versions=[['conservative','Conservative · 保守版'],['targeted','Targeted · 针对性重构版 ⭐'],['keywordFocused','Keyword Focused · 关键词强化版']];
-  const why=Array.isArray(item.whyChanged)?item.whyChanged:[];
-  return `<div class="page-title"><button class="btn" onclick="closeResumeHistory()">← 返回重构记录</button><p class="eyebrow">本次重构</p><h1 style="font-size:42px">${escapeHtml(title)}</h1><p class="lead">${escapeHtml(dt)} · 本次生成独立保存，不会因职业库后续修改而变化。</p></div>
-  <section class="card"><div class="section-head"><div><h2>本次重构方向</h2><div class="sub">从 JD 所需能力出发，寻找不同场景中的可迁移真实证据。</div></div>${item.analysis?.matchScore!=null?`<strong class="score">${Number(item.analysis.matchScore)||0}/100</strong>`:''}</div>
-  ${renderRebuildPlan(item.rebuildPlan)}
-  ${why.length?`<div class="match-box why-box"><h3>为什么这样修改</h3><ul>${why.slice(0,8).map(renderWhyItem).join('')}</ul></div>`:''}
-  ${item.status==='partial'?'<div class="status-text error">本次生成未全部完成，已保留成功版本。</div>':''}</section>
-  <section class="card" style="margin-top:18px"><div class="section-head"><div><h2>三版定制简历</h2><div class="sub">每个版本独立编辑、复制或打印为 PDF。</div></div></div><div class="resume-detail-list">${versions.map(([k,label])=>item.versions?.[k]?`<article class="resume-version"><div class="section-head"><strong>${label}</strong><div class="actions compact"><button class="btn" onclick="openResumeEditModal('${item.id}','${k}')">编辑</button><button class="btn" onclick="copyResume('${item.id}','${k}')">复制</button><button class="btn" onclick="printResume('${item.id}','${k}')">PDF/打印</button></div></div>${item.versions[k].version?.startsWith('structured-v5')?renderResumePaper(item.versions[k]):`<div class="content-preview">${escapeHtml(item.versions[k])}</div>`}</article>`:'').join('')}</div></section>`;
+function renderHistoryItem(x){
+  const when=x.generatedAt?new Date(x.generatedAt).toLocaleString('zh-CN',{hour12:false}):'时间未知';
+  const label=x.jobTitle||x.title||'未命名岗位';
+  const status=x.status==='partial'?' · 部分完成':'';
+  const versions=[['targeted','Targeted · 针对性重构版 ⭐'],['keywordFocused','Keyword Focused · 关键词强化版']];
+  return `<details class="resume-history-card"><summary><div><strong>${escapeHtml(label)}</strong><div class="meta">${escapeHtml(when)}${status}</div></div><span class="history-arrow">›</span></summary><div class="history-body">${x.rebuildPlan?renderRebuildPlan(x.rebuildPlan):''}${x.status==='partial'?'<div class="status-text error">本次生成未全部完成，已保留成功版本。回到 JD 分析页可重新生成。</div>':''}<div class="resume-version-grid">${versions.map(([k,label])=>x.versions?.[k]?`<article class="resume-version"><div class="section-head"><strong>${label}</strong><div class="actions compact"><button class="btn" onclick="openResumeEditModal('${x.id}','${k}')">编辑</button><button class="btn" onclick="copyResume('${x.id}','${k}')">复制</button><button class="btn" onclick="printResume('${x.id}','${k}')">PDF/打印</button></div></div>${String(x.versions[k].version||'').startsWith('structured-v5.')?renderResumePaper(x.versions[k]):`<div class="content-preview">${safeAIText(x.versions[k])}</div>`}</article>`:'').join('')}</div>${renderWhyChanged(x.whyChanged)}</div></details>`;
 }
 function resumesPage(){
   const h=loadResumeHistory();
-  const selected=localStorage.getItem(RESUME_SELECTED_KEY);
-  if(selected){const item=h.find(x=>x.id===selected);if(item)return renderResumeDetail(item);localStorage.removeItem(RESUME_SELECTED_KEY);}
-  return `<div class="page-title"><p class="eyebrow">简历</p><h1 style="font-size:42px">简历重构记录</h1><p class="lead">每次 JD 重构都会独立保存。按岗位名称和生成时间查看本次重构方向与三版简历。</p></div><section class="card"><div class="section-head"><div><h2>历史记录</h2><div class="sub">最新生成的记录排在最上方，时间精确到分钟。</div></div></div><div class="resume-record-list">${h.length?h.map(resumeHistoryCard).join(''):emptyBlock('还没有生成简历','先进入 JD 分析，分析一个岗位后生成 3 个版本。')}</div></section>`;
+  return `<div class="page-title"><p class="eyebrow">简历</p><h1 style="font-size:42px">真正的定制简历。</h1><p class="lead">每一次 JD 重构都会独立保存。按“岗位 + 生成时间”查看本次重构方向与两版简历。</p></div><section class="card"><div class="section-head"><div><h2>简历重构记录</h2><div class="sub">历史记录不会因职业整理库后续修改而改变。</div></div><span class="plan-badge">${h.length} 次</span></div>${h.length?h.map(renderHistoryItem).join(''):emptyBlock('还没有生成简历','先进入 JD 分析，分析一个岗位后生成两版简历。')}</section>`;
 }
+
 function compactCareerEvidence(){
   const p=profile;
   return {
@@ -589,7 +580,7 @@ function compactCareerEvidence(){
 }
 async function ensureRebuildPlan(saved,ai){
   if(saved.analysis?.rebuildPlan?.requirements?.length)return saved.analysis.rebuildPlan;
-  const prompt=`你是 CareerFit 的简历重构策略分析器。核心原则：能力和方法论具有可迁移性，应用场景可以不同。不要因为职位名称、行业或过去工作场景不同就判定能力无关。必须沿着“JD要求 → 所需能力 → 具体行为 → 应用场景 → 用户真实证据”判断匹配。一个岗位能力可以由多个不同经历共同证明，但每条证据必须保留真实来源，禁止跨公司拼接成不存在的经历。增加删除测试：如果删除某条事实不会削弱任何重要 JD 能力的证明，则可弱化/省略；反之应保留。只允许使用职业整理库真实事实，缺失能力必须标记为缺口。返回严格 JSON：{"requirements":[{"requirement":"","priority":"高/中/低","matchLevel":"高度匹配/部分匹配/当前缺口","evidence":[{"fact":"","source":""}],"action":""}],"priorityOrder":[],"restructureStrategy":[],"gaps":[]}.\nJD：${saved.jd}\n职业整理库：${JSON.stringify(compactCareerEvidence())}\n已有JD分析：${JSON.stringify(saved.analysis||{})}`;
+  const prompt=`你是 CareerFit 的简历重构策略分析器。根据 JD 和职业整理库，建立“岗位要求 → 真实证据 → 简历动作”的重构方案。只允许使用职业整理库真实事实，缺失能力必须标记为缺口。返回严格 JSON：{"requirements":[{"requirement":"","priority":"高/中/低","matchLevel":"高度匹配/部分匹配/当前缺口","evidence":[{"fact":"","source":""}],"action":""}],"priorityOrder":[],"restructureStrategy":[],"gaps":[]}.\nJD：${saved.jd}\n职业整理库：${JSON.stringify(compactCareerEvidence())}\n已有JD分析：${JSON.stringify(saved.analysis||{})}`;
   const plan=await callAIJSON(prompt);
   saved.analysis=saved.analysis||{};saved.analysis.rebuildPlan=plan;localStorage.setItem(JD_KEY,JSON.stringify(saved));return plan;
 }
@@ -603,7 +594,15 @@ async function generateResumeVersions(){
   const btn=document.getElementById('resume-generate-btn');const status=btn?.closest('.card')?.querySelector('.resume-generation-status');
   if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='⏳ 正在重构…';}
   const update=(html)=>{if(status){status.innerHTML=html;status.className='hint ai-status resume-generation-status';}};
-  let plan;try{update('⏳ 正在确认岗位要求与真实经历的匹配证据…');plan=await ensureRebuildPlan(saved,ai);update('✓ 已完成岗位→证据匹配<br>⏳ 正在生成 Conservative（保守版）<br>○ Targeted（针对性重构版）<br>○ Keyword Focused（关键词强化版）');}catch(e){update(`❌ 重构方案生成失败：${escapeHtml(friendlyError(e))}`);toast('重构方案生成失败：'+friendlyError(e));if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent='开始按此方案重构简历';}return;}
+  let plan;
+  try{
+    update('⏳ 正在确认岗位要求与真实经历的匹配证据…');
+    plan=await ensureRebuildPlan(saved,ai);
+    update('✓ 已完成 JD → 能力 → 真实证据匹配<br>⏳ 正在生成 Targeted（针对性重构版）<br>○ Keyword Focused（关键词强化版）');
+  }catch(e){
+    update(`❌ 重构方案生成失败：${escapeHtml(friendlyError(e))}`);toast('重构方案生成失败：'+friendlyError(e));
+    if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent='开始按此方案重构简历';}return;
+  }
   const fixedEdu=fixedEducation();
   const baseContext=`职业整理库（唯一事实来源）：${JSON.stringify(compactCareerEvidence())}
 
@@ -613,30 +612,59 @@ JD 深度分析：${JSON.stringify(saved.analysis||{})}
 
 简历重构方案：${JSON.stringify(plan)}
 
-固定个人信息（生成结果必须逐字保持）：${JSON.stringify(profile.personal||{})}
+固定个人信息（仅当已有值时使用，不得生成占位文字）：${JSON.stringify(profile.personal||{})}
 
-固定教育背景（如为空则不要自行补充）：${JSON.stringify(fixedEdu)}`;
-  const rules=`你是资深招聘顾问和简历重构专家。不要把简历写成一坨文字，而是输出严格 JSON 结构。CareerFit 的目标是“用最有证明力的真实证据说明用户为什么适合该岗位”。能力和方法论是可迁移的：不得因为过去职位、行业或场景与 JD 不同就删除证据。必须从“JD能力 → 所需行为 → 用户过去做过的相同/相近行为 → 真实场景”建立证据链。工作经历必须逐条筛选事实：强相关内容强化，中相关内容保留并改写，弱相关内容最多保留1条，无关内容直接省略；使用删除测试判断取舍。一个 JD 能力可以由多个经历共同证明，但每条事实必须保持原公司/项目来源，不得跨公司混合。不要为了凑完整而展示所有工作内容。可以重新排序、合并同一公司的真实事实、拆分或压缩 bullet。项目只有与 JD 明显相关才出现。专业技能只允许从职业库已有技能中筛选。证书全部出现。个人信息和教育背景必须使用提供的固定值，不得改写。禁止编造或改变任何公司、职位、日期、客户、技能、工具、数字、职责和成果；不同公司的事实不得混用；JD 没有证据的要求只能不写。所有数字必须原样保留。`;
-  const schema=`返回严格 JSON，不要 Markdown：{"summary":"","projects":[{"title":"必须来自职业库","date":"","bullets":[]}],"experiences":[{"company":"必须来自职业库","position":"必须来自职业库","date":"","bullets":[]}],"skills":[],"certificates":[]}`;
-  const versions={};let history=loadResumeHistory();const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title,jd:saved.jd,generatedAt:new Date().toISOString(),analysis:structuredClone(saved.analysis||{}),versions:{},whyChanged:[],rebuildPlan:plan,status:'generating'};history.unshift(item);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));
+固定教育背景：${JSON.stringify(fixedEdu)}`;
+  const rules=`你是 CareerFit 的 JD 驱动简历重构专家。你的任务不是润色原简历，而是从用户全部真实经历中，重新组织一份“证明用户为什么适合该岗位”的简历。
+
+能力迁移原则（必须遵守）：
+1. 不得用职位名称、行业名称直接判断经历是否相关。必须从 JD 要求 → 能力 → 任务/行为 → 场景 → 真实证据建立匹配。
+2. 能力具有可迁移性：过去工作和目标岗位场景不同，不代表能力不可迁移。客户需求挖掘、需求沟通、问题拆解、项目推进、数据分析、用户洞察、方案执行等方法论可以迁移到新场景。
+3. 一个 JD 能力可以由多个不同经历共同证明，但每条事实必须保留原始来源，绝不能把不同公司的事实混成一个经历。
+4. 判断一条事实是否保留时使用“删除测试”：如果删除它会明显削弱对某项重要 JD 能力的证明，就保留；否则可以压缩或删除。
+5. 强相关证据扩大表达；中相关证据换成可迁移能力表达；弱相关证据压缩；无助于证明任何核心 JD 能力的内容省略。不要为了“完整”平均展示所有经历。
+6. 不得把非 AI 工作写成 AI 工作；不得把外贸、数据分析等经历虚构成产品经理经历。只能表达真实可迁移能力。
+7. 禁止编造或改变公司、职位、日期、客户、工具、技能、数字、职责、成果。所有数字必须原样保留。JD 中没有真实证据的能力只能作为缺口，绝不能写进简历。
+8. 项目只展示与目标 JD 有明确证明关系的项目；专业技能只从职业库已有技能中筛选；证书全部保留。个人信息和教育背景固定，不生成“未填写姓名”等任何占位内容。
+9. Targeted 是最强的能力匹配重构；Keyword Focused 在不改变事实的前提下，更主动采用 JD 原文中真实匹配的关键词表达。两版都必须是完整、可投递的简历结构。`;
+  const schema=`只返回严格 JSON，不要 Markdown：{"summary":"","projects":[{"title":"必须来自职业库","date":"","bullets":[]}],"experiences":[{"company":"必须来自职业库","position":"必须来自职业库","date":"","bullets":[]}],"skills":[],"certificates":[]}`;
+  const versions={};
+  let history=loadResumeHistory();
+  const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title||'未命名岗位',jd:saved.jd,generatedAt:new Date().toISOString(),versions:{},whyChanged:[],rebuildPlan:plan,status:'generating',version:'v5.5'};
+  history.unshift(item);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));
   const saveProgress=()=>{const idx=history.findIndex(x=>x.id===item.id);if(idx>=0){history[idx]=item;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));}};
-  const jobs=[['conservative','Conservative（保守版）','尽量保留原有工作经历覆盖面，但仍删除明显无关内容；做轻度重排和表达优化。'],['targeted','Targeted（针对性重构版）','主力版本。按 JD 重新决定工作经历、项目、技能的展示顺序和内容密度；强相关证据前置，弱相关证据压缩或省略。'],['keywordFocused','Keyword Focused（关键词强化版）','在真实证据范围内最大化覆盖 JD 核心关键词；结构接近 Targeted，但更重视招聘方常用关键词表达。']];
+  const jobs=[['targeted','Targeted（针对性重构版）','主力版本。按 JD 重新分配简历空间，优先展示能证明核心能力的真实经历；允许大幅重排、压缩、合并同一公司的真实事实。'],['keywordFocused','Keyword Focused（关键词强化版）','在 Targeted 逻辑基础上，更主动使用 JD 中与用户真实证据对应的关键词和表达，但不得为了关键词覆盖而虚构能力。']];
   try{
     for(let i=0;i<jobs.length;i++){
-      const [key,label,style]=jobs[i];update(`✓ 已完成 JD → 证据匹配<br>${i>0?'✓ 已完成 '+jobs[i-1][1]+'<br>':''}⏳ 正在生成 ${label}…`);
-      try{const raw=await callTrackedAI(ai,`${rules}
+      const [key,label,style]=jobs[i];
+      update(`✓ 已完成 JD → 能力 → 真实证据匹配<br>${i>0?'✓ 已完成 Targeted（针对性重构版）<br>':''}⏳ 正在生成 ${label}…`);
+      try{
+        const raw=await callTrackedAI(ai,`${rules}
+
 当前版本：${label}
 版本策略：${style}
 ${schema}
 
-${baseContext}`);const parsed=parseAIJSON(raw);versions[key]=normalizeStructuredResume(parsed);if(!versions[key].summary&&!versions[key].experiences.length&&!versions[key].projects.length)throw new Error('AI 返回的简历内容为空');item.versions[key]=versions[key];saveProgress();}catch(e){item.status='partial';saveProgress();const reason=friendlyError(e);update(`❌ ${label}生成失败：${escapeHtml(reason)}<br>已保留此前成功生成的版本。<br><button class="btn" onclick="generateResumeVersions()">重新生成失败版本</button>`);toast(`${label}生成失败：${reason}`);return;}
+${baseContext}`);
+        const parsed=parseAIJSON(raw);const normalized=normalizeStructuredResume(parsed);
+        if(!normalized.summary&&!normalized.experiences.length&&!normalized.projects.length)throw new Error('AI 返回的简历内容为空');
+        versions[key]=normalized;item.versions[key]=normalized;saveProgress();
+      }catch(e){
+        item.status='partial';saveProgress();const reason=friendlyError(e);update(`❌ ${label}生成失败：${escapeHtml(reason)}<br>已保留此前成功生成的版本。<br><button class="btn" onclick="generateResumeVersions()">重新生成失败版本</button>`);toast(`${label}生成失败：${reason}`);return;
+      }
     }
-    update('✓ 3 个结构化简历版本均已生成<br>⏳ 正在生成“为什么这样修改”…');
-    try{const why=await callAIJSON(`根据 JD、重构方案和职业库，解释 Targeted 版本为什么这样筛选和重构。重点解释“能力可迁移、场景不同”的判断：哪些 JD 能力由哪些真实经历共同证明；哪些内容被强化、弱化或省略，以及为什么。每条说明必须具体、可追溯，返回严格 JSON 数组，最多8条，每项格式为 {"change":"调整","reason":"原因"}。
+    update('✓ 两版结构化简历均已生成<br>⏳ 正在整理“为什么这样修改”…');
+    try{
+      const why=await callAIJSON(`根据 JD、重构方案、Targeted 简历和职业库，解释这次重构为什么这样做。重点说明：哪些能力被强化、哪些事实被弱化/省略、哪些项目/技能被选择，以及哪些 JD 要求仍然没有真实证据。必须尊重能力迁移原则：不同场景的可迁移能力可以共同证明同一 JD 能力，但不得混淆事实来源。返回严格 JSON 数组，最多8条，每项优先使用 {"change":"具体变化","reason":"具体原因"}。
 JD：${saved.jd}
 重构方案：${JSON.stringify(plan)}
-职业库：${JSON.stringify(compactCareerEvidence())}`);item.whyChanged=Array.isArray(why)?why:(Array.isArray(why?.whyChanged)?why.whyChanged:[]);}catch(e){item.whyChanged=[];}
-    item.versions={...versions};item.status='completed';saveProgress();update('✓ 3 版结构化简历完成<br>已保存到「简历」页面。');setPage('resumes');setTimeout(()=>toast('✓ 3 版定制简历已生成，已保存到“简历”页面'),50);
+Targeted简历：${JSON.stringify(item.versions.targeted)}
+职业库：${JSON.stringify(compactCareerEvidence())}`);
+      item.whyChanged=Array.isArray(why)?why:(Array.isArray(why?.whyChanged)?why.whyChanged:[]);
+    }catch(e){item.whyChanged=[];}
+    item.versions={...versions};item.status='completed';saveProgress();
+    update('✓ 两版结构化简历完成<br>已保存到「简历」页面。');setPage('resumes');
+    setTimeout(()=>toast('✓ 两版定制简历已生成，已保存到“简历”页面'),50);
   }finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent='开始按此方案重构简历';}}
 }
 

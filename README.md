@@ -1,15 +1,11 @@
-# CareerFit V1
+# CareerFit V5.5
 
-A browser-first PWA for building a long-term Career Profile and tailoring resumes to job descriptions.
+JD 驱动的 AI 简历重构 PWA。
 
-## V1
-- Local Career Profile
-- Work experience, achievements, skills, projects, education, certificates
-- Personal information
-- LocalStorage persistence
-- Export / Import profile JSON
-- Responsive desktop/mobile UI
-- PWA manifest + service worker
-
-## Next phase
-AI-powered career import, JD analysis, match score, gap analysis, and three tailored resume versions.
+本版本重点：
+- 能力迁移导向：按 JD 能力 → 任务/行为 → 场景 → 真实证据匹配，不按职位/行业直接判断相关性。
+- 一次生成 2 版：Targeted（针对性重构版）与 Keyword Focused（关键词强化版）。
+- 简历重构记录按岗位 + 生成时间独立保存，点击记录后查看本次重构方案、两版简历和修改原因。
+- 修复 AI 对象结果显示为 `[object Object]` 的问题。
+- 生成简历不再显示“未填写姓名”等占位文字。
+- 保持本地优先、多 AI 配置、PDF/DOCX 解析、JD 截图识别等能力。

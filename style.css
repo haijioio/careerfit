@@ -116,7 +116,7 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
 .resume-generation-status{margin-top:12px}
 @media(max-width:760px){.btn:active:not(:disabled),.source-choice:active{transform:scale(.97)}.ai-card .actions.compact{display:grid;grid-template-columns:repeat(2,1fr)}}
 
-/* V5.4 structured resume renderer */
+/* V5.5 structured resume renderer + history */
 .resume-version-grid{display:grid;gap:18px;margin-top:16px}
 .resume-version{border:1px solid var(--line);border-radius:16px;padding:16px;background:#f8f9fb;overflow:hidden}
 .resume-version>.section-head{align-items:center;margin-top:0}
@@ -140,4 +140,18 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
 .resume-version .actions.compact{flex-wrap:wrap}
 @media(max-width:760px){.resume-paper{padding:22px 18px}.resume-entry-head{flex-direction:column;gap:2px}.resume-fixed-line{flex-wrap:wrap;gap:8px}.resume-version>.section-head .actions{width:100%}}
 @media print{body{background:#fff!important}.topbar,.mobile-nav,#toast{display:none!important}.main{width:100%!important;max-width:none!important;padding:0!important}.resume-paper{box-shadow:none;width:210mm;min-height:297mm;margin:0 auto}}
-.resume-record-list{display:grid;gap:10px}.resume-record{position:relative;width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:16px;padding:18px 20px;cursor:pointer;transition:.15s;display:grid;grid-template-columns:1fr auto;gap:8px 18px}.resume-record:hover{transform:translateY(-1px);border-color:#bbb}.resume-record:active{transform:translateY(1px)}.resume-record strong{font-size:18px}.resume-record-meta{font-size:13px;color:var(--muted);margin-top:5px}.resume-record-right{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}.resume-score{font-weight:800;font-size:20px;color:var(--text)}.resume-arrow{font-size:20px;color:var(--text)}.resume-record-tags{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap;margin-top:5px}.resume-record-tags span{font-size:12px;background:#f3f4f6;border-radius:999px;padding:4px 9px;color:#555}.resume-detail-list{display:grid;gap:20px}.why-box li{margin-bottom:12px}.why-box li:last-child{margin-bottom:0}.why-reason{margin-top:5px;color:var(--muted);line-height:1.6}.ai-object-key{display:none}@media(max-width:760px){.resume-record{padding:16px;grid-template-columns:1fr}.resume-record-right{justify-content:flex-start}.resume-record-tags{margin-top:2px}.resume-record strong{font-size:17px}}
+
+/* V5.5 resume history: one expandable record per generation */
+.resume-history-card{border:1px solid var(--line);border-radius:16px;background:#fff;margin-top:12px;overflow:hidden}
+.resume-history-card>summary{list-style:none;cursor:pointer;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:#fafbfc}
+.resume-history-card>summary::-webkit-details-marker{display:none}
+.resume-history-card>summary:hover{background:#f5f7fa}
+.resume-history-card[open]>summary{border-bottom:1px solid var(--line);background:#f7f9fc}
+.history-arrow{font-size:28px;line-height:1;color:#667085;transition:transform .18s ease}
+.resume-history-card[open] .history-arrow{transform:rotate(90deg)}
+.history-body{padding:18px 20px 22px}
+.history-body .rebuild-plan{margin-top:0}
+.history-body .resume-version-grid{grid-template-columns:1fr 1fr}
+.why-changed li{margin:8px 0}
+.why-changed li strong{display:block;margin-bottom:3px}
+@media(max-width:900px){.history-body .resume-version-grid{grid-template-columns:1fr}}

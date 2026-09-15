@@ -115,3 +115,28 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
 .ai-status{min-height:20px;margin-top:8px;line-height:1.55;font-weight:600}
 .resume-generation-status{margin-top:12px}
 @media(max-width:760px){.btn:active:not(:disabled),.source-choice:active{transform:scale(.97)}.ai-card .actions.compact{display:grid;grid-template-columns:repeat(2,1fr)}}
+
+/* V5.4 structured resume renderer */
+.resume-version-grid{display:grid;gap:18px;margin-top:16px}
+.resume-version{border:1px solid var(--line);border-radius:16px;padding:16px;background:#f8f9fb;overflow:hidden}
+.resume-version>.section-head{align-items:center;margin-top:0}
+.resume-paper{width:min(100%,210mm);margin:0 auto;background:#fff;color:#111;padding:28px 34px;box-sizing:border-box;box-shadow:0 12px 30px rgba(0,0,0,.07);font-family:Arial,"Microsoft YaHei",sans-serif;line-height:1.55}
+.resume-paper-head{text-align:center;border-bottom:2px solid #111;padding-bottom:14px}
+.resume-paper-head h2{margin:0;font-size:26px;letter-spacing:.04em}
+.resume-headline{font-size:14px;margin-top:5px;font-weight:600}
+.resume-contact{font-size:11px;color:#555;margin-top:6px}
+.resume-section{margin-top:18px}
+.resume-section h3{font-size:15px;letter-spacing:.04em;border-bottom:1px solid #cfd3d8;padding-bottom:5px;margin:0 0 9px}
+.resume-section p{margin:0;font-size:12px}
+.resume-entry{margin-bottom:13px}
+.resume-entry-head{display:flex;justify-content:space-between;gap:16px;font-size:12px;align-items:baseline}
+.resume-entry-head>div{min-width:0}
+.resume-position{margin-left:10px;font-weight:400}
+.resume-entry-head>span{white-space:nowrap;color:#555}
+.resume-entry ul{margin:5px 0 0;padding-left:18px;font-size:11.5px}
+.resume-entry li{margin:3px 0}
+.resume-fixed-line{display:flex;gap:18px;font-size:12px;margin:6px 0}
+.resume-fixed-line span{color:#555}
+.resume-version .actions.compact{flex-wrap:wrap}
+@media(max-width:760px){.resume-paper{padding:22px 18px}.resume-entry-head{flex-direction:column;gap:2px}.resume-fixed-line{flex-wrap:wrap;gap:8px}.resume-version>.section-head .actions{width:100%}}
+@media print{body{background:#fff!important}.topbar,.mobile-nav,#toast{display:none!important}.main{width:100%!important;max-width:none!important;padding:0!important}.resume-paper{box-shadow:none;width:210mm;min-height:297mm;margin:0 auto}}

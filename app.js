@@ -7,7 +7,9 @@ const CURRENT_AI_KEY = "careerfit_current_ai_v5";
 const JD_KEY = "careerfit_jd_v5";
 const RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
 const AI_STATUS_KEY = "careerfit_ai_status_v51";
-const REBUILD_PLAN_VERSION = "v5.5";
+const REBUILD_PLAN_VERSION = "v6.0";
+const EVIDENCE_KEY = "careerfit_evidence_v6";
+const EVIDENCE_GAP_KEY = "careerfit_evidence_gaps_v6";
 
 const blankProfile = {
   version: 2,
@@ -18,6 +20,8 @@ const blankProfile = {
   certificates: [],
   skills: [],
   sourceDocuments: [],
+  evidenceBank: [],
+  mdDocuments: [],
   ai: { provider: "gemini", apiKey: "", lastConflicts: [] }
 };
 
@@ -37,7 +41,9 @@ function loadProfile(){
       projects: Array.isArray(saved.projects)?saved.projects:[],
       certificates: Array.isArray(saved.certificates)?saved.certificates:[],
       skills: Array.isArray(saved.skills)?saved.skills:[],
-      sourceDocuments: Array.isArray(saved.sourceDocuments)?saved.sourceDocuments:[]
+      sourceDocuments: Array.isArray(saved.sourceDocuments)?saved.sourceDocuments:[],
+      evidenceBank: Array.isArray(saved.evidenceBank)?saved.evidenceBank:[],
+      mdDocuments: Array.isArray(saved.mdDocuments)?saved.mdDocuments:[]
     };
     // Migrate old profile data without forcing the old UI back.
     merged.experiences = merged.experiences.map(x => ({
@@ -109,11 +115,12 @@ function toast(message){
 }
 function setPage(page){ currentPage=page; localStorage.setItem(PAGE_KEY,page); render(); window.scrollTo({top:0,behavior:"smooth"}); }
 function updateNav(){ document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===currentPage)); }
-function stats(){ return {experiences:profile.experiences.length,projects:profile.projects.length,certificates:profile.certificates.length,skills:profile.skills.length}; }
+function stats(){ return {experiences:profile.experiences.length,projects:profile.projects.length,certificates:profile.certificates.length,skills:profile.skills.length,evidence:(profile.evidenceBank||[]).length,gaps:loadEvidenceGaps().length}; }
 function render(){
   const app=document.getElementById("app");
   if(currentPage==="home") app.innerHTML=homePage();
   else if(currentPage==="profile") app.innerHTML=profilePage();
+  else if(currentPage==="evidence") app.innerHTML=evidencePage();
   else if(currentPage==="jd") app.innerHTML=jdPage();
   else if(currentPage==="resumes") app.innerHTML=resumesPage();
   else app.innerHTML=settingsPage();
@@ -122,32 +129,20 @@ function render(){
 function homePage(){
   const s=stats();
   return `<section class="hero">
-    <p class="eyebrow">CareerFit</p>
-    <h1>先整理职业经历，<br>再让 AI 帮你写简历。</h1>
-    <p class="lead">把过去的简历、工作经历和项目放进一个职业整理库。你只负责提供真实素材，CareerFit 负责定位、整理和润色。</p>
+    <p class="eyebrow">CareerFit V6</p>
+    <h1>把你真正做过的事，<br>沉淀成长期职业资产。</h1>
+    <p class="lead">上传简历，让 AI 挖掘证据并追问缺口；也可以导入你以前和其他 AI 聊过职业经历的 Markdown。最终统一沉淀进职业证据库，再用于 JD 匹配和简历重构。</p>
   </section>
   <div class="grid home-grid">
     <section class="card">
-      <p class="eyebrow">我的职业整理库</p>
-      <h2>${escapeHtml(profile.personal.name||"还没有开始整理")}</h2>
-      <p class="small-note">你的职业素材统一保存在本机，后续生成简历时直接调用。</p>
+      <p class="eyebrow">我的职业资产</p><h2>${escapeHtml(profile.personal.name||"还没有开始整理")}</h2>
       <div class="profile-summary">
-        <div class="stat"><strong>${s.experiences}</strong><span>工作经历</span></div>
-        <div class="stat"><strong>${s.projects}</strong><span>项目经历</span></div>
-        <div class="stat"><strong>${s.certificates}</strong><span>证书</span></div>
-        <div class="stat"><strong>${s.skills}</strong><span>专业技能</span></div>
+        <div class="stat"><strong>${s.experiences}</strong><span>工作经历</span></div><div class="stat"><strong>${s.projects}</strong><span>项目经历</span></div><div class="stat"><strong>${s.evidence}</strong><span>职业证据</span></div><div class="stat"><strong>${s.gaps}</strong><span>待完善</span></div>
       </div>
-      <div class="actions"><button class="btn primary" onclick="setPage('profile')">进入职业整理库</button></div>
+      <div class="actions"><button class="btn primary" onclick="setPage('profile')">进入职业资产</button><button class="btn" onclick="setPage('evidence')">查看证据库</button></div>
     </section>
-    <section class="card">
-      <p class="eyebrow">使用逻辑</p>
-      <h2>你提供素材，AI负责整理</h2>
-      <div class="quick-list">
-        <div class="quick-item"><strong>① 工作经历</strong><span>公司 · 岗位 · 时间 · 工作内容</span></div>
-        <div class="quick-item"><strong>② 项目经历</strong><span>项目名 · 时间 · 项目描述</span></div>
-        <div class="quick-item"><strong>③ 证书</strong><span>只填写证书名称</span></div>
-        <div class="quick-item"><strong>④ 专业技能</strong><span>自己填写和维护</span></div>
-      </div>
+    <section class="card"><p class="eyebrow">V6 核心闭环</p><h2>不是替你编简历，而是帮你把经历挖深。</h2>
+      <div class="quick-list"><div class="quick-item"><strong>① 上传简历</strong><span>AI 提取真实事实和证据链</span></div><div class="quick-item"><strong>② 导入职业 Markdown</strong><span>接入你过去和其他 AI 聊过的内容</span></div><div class="quick-item"><strong>③ 发现缺口</strong><span>AI 找到重要但证据不足的能力</span></div><div class="quick-item"><strong>④ 追问补全</strong><span>文字 / 语音回答，确认后沉淀职业资产</span></div></div>
     </section>
   </div>`;
 }
@@ -162,9 +157,12 @@ function profilePage(){
       <div class="import-step"><span>03</span><div><strong>润色</strong><p>AI 根据原始内容优化表达，不编造事实。</p></div></div>
     </div>
     ${profile.sourceDocuments.length?`<div class="source-list"><strong>已上传 ${profile.sourceDocuments.length} 份简历</strong>${profile.sourceDocuments.map((d,i)=>`<div class="source-item"><span>${escapeHtml(d.name)} <small class="meta">· ${d.wordCount||0} 字</small></span><button class="icon-btn" onclick="deleteSourceDocument(${i})">×</button></div>`).join("")}</div>`:""}
+    <div class="v6-import-panel"><div><strong>或者，接入你以前和 AI 聊过的职业内容</strong><p class="small-note">支持 Markdown。CareerFit 会区分“用户真实陈述”和“AI 的总结/建议”，只把可追溯的用户事实作为候选职业证据。</p></div><button class="btn" onclick="openMarkdownImportModal()">📝 导入职业 Markdown</button></div>
+    <div class="actions"><button class="btn" onclick="mineAllCareerEvidence()">🧠 AI 挖掘职业证据</button><button class="btn primary" onclick="setPage('evidence')">查看证据与追问</button></div>
+    <div id="profile-evidence-status" class="hint"></div>
   </section>
 
-  <section class="card" style="margin-top:18px"><div class="section-head"><div><h2>工作经历</h2><div class="sub">${s.experiences} 段 · 只填写公司、岗位、时间和工作内容</div></div><button class="btn primary" onclick="openExperienceModal()">＋添加工作经历</button></div>
+  <section class="card" style="margin-top:18px"><div class="section-head"><div><h2>工作经历</h2><div class="sub">${s.experiences} 段 · 原始经历只是起点，V6 会继续挖掘证据链</div></div><button class="btn primary" onclick="openExperienceModal()">＋添加工作经历</button></div>
     <div class="experience-list">${profile.experiences.length?profile.experiences.map(experienceCard).join(""):emptyBlock("还没有工作经历","填写公司、岗位、时间后，可以直接从你上传的简历中定位内容。")}</div>
   </section>
 
@@ -177,6 +175,27 @@ function profilePage(){
     <section class="card"><div class="section-head"><div><h2>专业技能</h2><div class="sub">和证书一样，由你自己填写、编辑和删除。</div></div><button class="btn" onclick="openSkillModal()">＋添加技能</button></div>${profile.skills.length?`<div class="tags skill-cloud">${profile.skills.map((x,i)=>`<span class="tag">${escapeHtml(x)} <button class="tag-x" onclick="deleteSkill(${i})">×</button></span>`).join("")}</div>`:emptyBlock("还没有专业技能","点击“添加技能”手动维护你的专业技能。")}</section>
   </div>`;
 }
+
+function loadEvidenceGaps(){try{return JSON.parse(localStorage.getItem(EVIDENCE_GAP_KEY)||'[]')}catch{return []}}
+function saveEvidenceGaps(gaps){localStorage.setItem(EVIDENCE_GAP_KEY,JSON.stringify(gaps||[]))}
+function loadEvidence(){return Array.isArray(profile.evidenceBank)?profile.evidenceBank:[]}
+function evidenceStrengthBadge(v){const x=String(v||'B').toUpperCase();return `<span class="fit-badge ${x==='S'?'high':x==='A'?'high':x==='B'?'medium':'low'}">${escapeHtml(x)} 证据</span>`}
+function evidencePage(){
+  const ev=loadEvidence(), gaps=loadEvidenceGaps();
+  return `<div class="page-title"><p class="eyebrow">职业证据库</p><h1 style="font-size:42px">把“我做过”变成可追溯的证据。</h1><p class="lead">每条证据都尽量保留来源、场景、行为、结果和事实边界。AI只能整理你提供的事实，不能替你创造事实。</p></div>
+  <div class="two-col"><section class="card"><div class="section-head"><div><h2>证据资产</h2><div class="sub">${ev.length} 条候选/已确认证据</div></div><button class="btn" onclick="mineAllCareerEvidence()">重新挖掘</button></div>${ev.length?`<div class="evidence-list">${ev.map((e,i)=>`<article class="evidence-card"><div class="section-head"><div><strong>${escapeHtml(e.title||e.capability||'职业证据')}</strong><div class="meta">${escapeHtml(e.sourceName||e.source||'来源未知')} · ${e.confirmed?'已确认':'待确认'} ${evidenceStrengthBadge(e.strength)}</div></div></div><p>${escapeHtml(e.scenario||e.context||e.fact||'')}</p>${e.behavior?`<p><strong>行为：</strong>${escapeHtml(e.behavior)}</p>`:''}${e.method?`<p><strong>方法/判断：</strong>${escapeHtml(e.method)}</p>`:''}${e.result?`<p><strong>结果：</strong>${escapeHtml(e.result)}</p>`:''}${e.boundary?`<p class="small-note"><strong>事实边界：</strong>${escapeHtml(e.boundary)}</p>`:''}<div class="actions compact">${e.confirmed?'':`<button class="btn primary" onclick="confirmEvidence('${e.id}')">确认加入</button>`}<button class="btn" onclick="editEvidence('${e.id}')">编辑</button><button class="btn" onclick="deleteEvidence('${e.id}')">删除</button></div></article>`).join('')}</div>`:emptyBlock('还没有职业证据','先上传简历或导入职业 Markdown，再点击 AI 挖掘。')}</section>
+  <section class="card"><div class="section-head"><div><h2>待完善证据</h2><div class="sub">AI 只问能明显增加证据价值的问题。</div></div></div>${gaps.length?gaps.map((g,i)=>`<article class="gap-card"><div class="meta">${escapeHtml(g.capability||g.requirement||'待完善能力')}</div><h3>${escapeHtml(g.question||'需要补充一段真实经历')}</h3>${g.why?`<p>${escapeHtml(g.why)}</p>`:''}<div class="actions"><button class="btn primary" onclick="openEvidenceAnswerModal('${g.id}')">🎙️ 回答</button><button class="btn" onclick="skipEvidenceGap('${g.id}')">暂不回答</button></div></article>`).join(''):'<div class="empty"><strong>目前没有待完善问题</strong><p>当 AI 发现重要证据链缺失时，会把最有价值的问题放在这里。</p></div>'}</section></div>`;
+}
+function confirmEvidence(id){const e=profile.evidenceBank.find(x=>x.id===id);if(!e)return;e.confirmed=true;e.confirmedAt=new Date().toISOString();saveProfile();toast('✓ 已加入职业资产')}
+function deleteEvidence(id){if(!confirm('删除这条职业证据吗？'))return;profile.evidenceBank=profile.evidenceBank.filter(x=>x.id!==id);saveProfile();}
+function editEvidence(id){const e=profile.evidenceBank.find(x=>x.id===id);if(!e)return;openModal('编辑职业证据',`<form class="form-grid" onsubmit="saveEvidenceEdit(event,'${id}')"><div class="field full"><label>标题/能力</label><input name="title" value="${escapeHtml(e.title||e.capability||'')}"></div><div class="field full"><label>场景</label><textarea name="scenario">${escapeHtml(e.scenario||'')}</textarea></div><div class="field full"><label>实际行为</label><textarea name="behavior">${escapeHtml(e.behavior||'')}</textarea></div><div class="field full"><label>方法 / 判断</label><textarea name="method">${escapeHtml(e.method||'')}</textarea></div><div class="field full"><label>结果</label><textarea name="result">${escapeHtml(e.result||'')}</textarea></div><div class="field full"><label>事实边界</label><textarea name="boundary">${escapeHtml(e.boundary||'')}</textarea></div><div class="actions field full"><button type="button" class="btn" onclick="closeModal()">取消</button><button class="btn primary">保存</button></div></form>`)}
+function saveEvidenceEdit(ev,id){ev.preventDefault();const e=profile.evidenceBank.find(x=>x.id===id);if(!e)return;const f=new FormData(ev.target);['title','scenario','behavior','method','result','boundary'].forEach(k=>e[k]=String(f.get(k)||'').trim());saveProfile();closeModal();toast('证据已更新')}
+function skipEvidenceGap(id){saveEvidenceGaps(loadEvidenceGaps().filter(x=>x.id!==id));render();toast('已暂时跳过')}
+function openEvidenceAnswerModal(id){const g=loadEvidenceGaps().find(x=>x.id===id);if(!g)return;openModal('补充职业证据',`<div class="field"><label>为什么问这个问题</label><p class="small-note">${escapeHtml(g.why||'为了补全重要证据链。')}</p></div><div class="field"><label>问题</label><div class="callout">${escapeHtml(g.question||'请讲一个具体案例。')}</div></div><div class="field"><label>你的回答</label><textarea id="evidence-answer" style="min-height:220px" placeholder="可以直接输入，也可以用下面的语音输入。"></textarea></div><div class="actions"><button class="btn" type="button" onclick="startEvidenceVoice()">🎙️ 语音输入</button><button class="btn primary" type="button" onclick="submitEvidenceAnswer('${id}')">AI整理并预览</button></div><div id="evidence-answer-status" class="hint"></div>`)}
+let evidenceRecognition=null;
+function startEvidenceVoice(){const T=window.SpeechRecognition||window.webkitSpeechRecognition;if(!T)return toast('当前浏览器不支持语音识别，可以直接打字。');const area=document.getElementById('evidence-answer');evidenceRecognition=new T();evidenceRecognition.lang='zh-CN';evidenceRecognition.interimResults=true;evidenceRecognition.continuous=false;evidenceRecognition.onresult=e=>{let out='';for(let i=0;i<e.results.length;i++)out+=e.results[i][0].transcript;area.value=(area.value?area.value+' ':'')+out};evidenceRecognition.onerror=()=>toast('语音识别失败，请改用文字输入');evidenceRecognition.start();toast('🎙️ 正在听，请开始说');}
+async function submitEvidenceAnswer(id){const g=loadEvidenceGaps().find(x=>x.id===id),answer=document.getElementById('evidence-answer')?.value.trim(),status=document.getElementById('evidence-answer-status');if(!g||!answer)return toast('请先输入回答');const ai=getCurrentAI();if(!ai)return toast('请先配置当前 AI');if(status)status.textContent='⏳ AI正在整理新增证据…';try{const prompt=`你是 CareerFit 的职业证据整理器。用户正在回答一个证据缺口问题。只能提取用户回答中明确提供的事实，不得补全、不做因果推断、不创造数字。返回严格 JSON：{"candidate":{"title":"","capability":"","scenario":"","behavior":"","method":"","result":"","boundary":"","strength":"S/A/B/C"}}。问题：${g.question}\n缺口原因：${g.why||''}\n用户回答：${answer}`;const out=await callTrackedAI(ai,prompt);const data=parseAIJSON(out)?.candidate;if(!data)throw new Error('AI没有返回可用证据');openModal('确认新增职业证据',`<div class="callout success-callout">AI整理出的内容只能来自你的回答，请确认后才会写入职业资产。</div><div class="evidence-preview"><p><strong>${escapeHtml(data.title||data.capability||'新增证据')}</strong></p><p>${escapeHtml(data.scenario||'')}</p>${data.behavior?`<p><strong>行为：</strong>${escapeHtml(data.behavior)}</p>`:''}${data.method?`<p><strong>方法/判断：</strong>${escapeHtml(data.method)}</p>`:''}${data.result?`<p><strong>结果：</strong>${escapeHtml(data.result)}</p>`:''}<p class="small-note">事实边界：${escapeHtml(data.boundary||'以用户回答为准')}</p><div class="actions"><button class="btn" onclick="closeModal()">修改/取消</button><button class="btn primary" onclick='acceptEvidenceCandidate(decodeURIComponent("${encodeURIComponent(JSON.stringify(data))}"),"${id}")'>✓ 确认加入</button></div></div>`)}catch(e){if(status)status.textContent='❌ '+friendlyError(e);}}
+function acceptEvidenceCandidate(json,id){try{const data=JSON.parse(json);profile.evidenceBank.push({id:crypto.randomUUID(),...data,confirmed:true,source:'用户补充回答',sourceName:'CareerFit 追问',createdAt:new Date().toISOString()});saveProfile();saveEvidenceGaps(loadEvidenceGaps().filter(x=>x.id!==id));closeModal();toast('✓ 新证据已沉淀');}catch(e){toast('保存失败')}}
 function emptyBlock(title,sub){return `<div class="empty"><strong>${escapeHtml(title)}</strong>${escapeHtml(sub)}</div>`;}
 function experienceCard(x,i){
   return `<article class="experience-item"><div class="experience-top"><div><h3>${escapeHtml(x.position||"未填写岗位")}</h3><div class="meta">${escapeHtml(x.company||"未填写公司")} · ${escapeHtml(dateRange(x.start,x.end,x.current))}</div></div><div class="actions" style="margin:0"><button class="btn" onclick="openExperienceModal(${i})">编辑</button><button class="btn danger" onclick="deleteExperience(${i})">删除</button></div></div>${x.workContent?`<div class="content-preview">${escapeHtml(x.workContent)}</div>`:`<p class="small-note">还没有工作内容。</p>`}</article>`;
@@ -262,6 +281,10 @@ function saveCertificate(e){e.preventDefault();const f=new FormData(e.target);co
 function deleteSimple(type,i){if(!confirm("确定删除吗？"))return;if(type==="certificate")profile.certificates.splice(i,1);saveProfile();toast("已删除");}
 function deleteSkill(i){profile.skills.splice(i,1);saveProfile();toast("技能已删除");}
 
+
+function openMarkdownImportModal(){openModal('导入职业 Markdown',`<div class="import-modal-copy"><p class="small-note">导入你以前和 ChatGPT、Claude、Gemini 等 AI 聊过职业经历、工作复盘、项目复盘的 Markdown。CareerFit 会尽量区分“用户说过的事实”和“AI 的分析/建议”。</p><div class="field"><label>选择 Markdown 文件</label><input id="md-files" class="file-input" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple></div><div id="md-import-status" class="hint"></div><div id="md-import-results"></div><div class="actions"><button class="btn" onclick="closeModal()">关闭</button><button class="btn primary" onclick="importMarkdownFiles()">导入并解析</button></div></div>`)}
+async function importMarkdownFiles(){const input=document.getElementById('md-files'),status=document.getElementById('md-import-status'),results=document.getElementById('md-import-results');if(!input?.files?.length)return toast('请选择 Markdown 文件');const ai=getCurrentAI();if(!ai)return toast('请先在设置里配置当前 AI');status.textContent='⏳ 正在读取并解析职业对话…';let added=0;for(const file of [...input.files]){try{const text=await file.text();if(!text.trim())throw new Error('文件为空');const prompt=`你是 CareerFit 的职业证据导入器。下面是一份用户从其他 AI 平台导出的职业/事业 Markdown 对话。你的任务是只提取用户自己明确陈述、描述或确认的职业事实。AI的评价、推测、建议、润色版本、假设案例、职业判断不能作为事实。不要编造任何信息。对每条事实建立候选证据，并尽量形成 evidence chain。返回严格 JSON：{"candidates":[{"title":"","capability":"","scenario":"","behavior":"","method":"","result":"","boundary":"","strength":"S/A/B/C","sourceQuote":""}]}。Markdown：\n${text.slice(0,100000)}`;const out=await callTrackedAI(ai,prompt);const data=parseAIJSON(out);const candidates=Array.isArray(data?.candidates)?data.candidates:[];const doc={id:crypto.randomUUID(),name:file.name,size:file.size,text,createdAt:new Date().toISOString(),candidateCount:candidates.length};profile.mdDocuments.push(doc);candidates.forEach(c=>profile.evidenceBank.push({id:crypto.randomUUID(),...c,confirmed:false,source:'Markdown职业对话',sourceName:file.name,createdAt:new Date().toISOString()}));added+=candidates.length;results.insertAdjacentHTML('beforeend',`<div class="callout success-callout">✓ ${escapeHtml(file.name)} · 发现 ${candidates.length} 条候选证据，请到职业证据库确认。</div>`)}catch(e){results.insertAdjacentHTML('beforeend',`<div class="callout error-callout">✕ ${escapeHtml(file.name)} · ${escapeHtml(friendlyError(e))}</div>`)}}saveProfile();status.textContent=`完成：新增 ${added} 条候选证据。`;}
+async function mineAllCareerEvidence(){const status=document.getElementById('profile-evidence-status');const ai=getCurrentAI();if(!ai)return toast('请先在设置里配置并测试一个当前 AI');const sources=(profile.sourceDocuments||[]).map(d=>`【简历：${d.name}】\n${d.text}`).join('\n\n');const md=(profile.mdDocuments||[]).map(d=>`【历史职业对话：${d.name}】\n${d.text}`).join('\n\n');const raw=(sources+'\n'+md).trim();if(!raw)return toast('请先上传简历或导入职业 Markdown');if(status)status.textContent='⏳ AI正在挖掘职业证据，并检查证据链完整度…';try{const prompt=`你是 CareerFit V6 的职业证据分析师。不要写简历。请从下面的职业材料中提取用户明确做过的事情，建立候选 Evidence。必须区分用户事实和 AI/文档中的推断；只记录可追溯事实。对每条证据输出场景、实际行为、方法/判断、结果、数据（如有）、事实边界、可迁移能力、证据强度。若证据链缺失，不要编造，而是为最重要的缺口生成一个高价值追问。返回严格 JSON：{"candidates":[{"title":"","capability":"","scenario":"","behavior":"","method":"","result":"","boundary":"","strength":"S/A/B/C","sourceName":"","sourceQuote":""}],"gaps":[{"capability":"","question":"","why":"","evidenceIds":[]}]}。材料：\n${raw.slice(0,140000)}`;const out=await callTrackedAI(ai,prompt);const data=parseAIJSON(out);const existing=new Set(loadEvidence().map(e=>normalizeKey((e.title||'')+'|'+(e.sourceQuote||e.fact||''))));for(const c of (data.candidates||[])){const key=normalizeKey((c.title||'')+'|'+(c.sourceQuote||c.fact||''));if(!existing.has(key)){profile.evidenceBank.push({id:crypto.randomUUID(),...c,confirmed:false,createdAt:new Date().toISOString()});existing.add(key)}}saveEvidenceGaps((data.gaps||[]).map(g=>({...g,id:crypto.randomUUID()})));saveProfile();if(status)status.textContent=`✓ 挖掘完成：当前共有 ${profile.evidenceBank.length} 条职业证据，${loadEvidenceGaps().length} 个待完善问题。`;setPage('evidence');}catch(e){if(status)status.textContent='❌ '+friendlyError(e);toast('证据挖掘失败：'+friendlyError(e));}}
 function openResumeImportModal(){
   openModal("上传已有简历",`<div class="import-modal-copy"><p class="small-note">一次选择一份或多份 PDF / DOCX。CareerFit 会先在浏览器中提取文字。成功读取后，你可以在工作经历或项目里按公司、岗位、时间定位内容。</p><div class="field"><label>选择简历</label><input id="resume-files" class="file-input" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple></div><div id="resume-import-status" class="hint" style="margin-top:10px"></div><div id="resume-import-results" style="margin-top:12px"></div><div class="actions"><button class="btn" onclick="closeModal()">关闭</button><button class="btn primary" onclick="extractResumeFilesOnly()">读取简历</button></div></div>`);
 }
@@ -282,6 +305,7 @@ async function extractResumeFilesOnly(){
     }catch(err){results.insertAdjacentHTML("beforeend",`<div class="callout error-callout">✕ ${escapeHtml(file.name)} · ${escapeHtml(err.message||"读取失败")}</div>`);}
   }
   saveProfile(); status.textContent=ok?`成功读取 ${ok} 份。原始文字已保存在本机。`:"没有成功读取的文件。";
+  if(ok && getCurrentAI() && getAIStatuses()[getCurrentAI().id]==='success'){ closeModal(); setPage('profile'); setTimeout(()=>mineAllCareerEvidence(),80); }
 }
 async function extractResumeText(file){
   const lower=file.name.toLowerCase();
@@ -575,7 +599,9 @@ function compactCareerEvidence(){
     personal:p.personal,
     experiences:(p.experiences||[]).map((x,i)=>({id:`experience_${i+1}`,company:x.company,position:x.position,start:x.start,end:x.end,current:x.current,content:x.workContent||x.rawWorkContent||''})),
     projects:(p.projects||[]).map((x,i)=>({id:`project_${i+1}`,title:x.title,start:x.start,end:x.end,description:x.description||x.rawDescription||''})),
-    certificates:p.certificates||[],skills:p.skills||[]
+    certificates:p.certificates||[],skills:p.skills||[],
+    evidence:(p.evidenceBank||[]).filter(x=>x.confirmed).map(x=>({id:x.id,title:x.title,capability:x.capability,scenario:x.scenario,behavior:x.behavior,method:x.method,result:x.result,boundary:x.boundary,strength:x.strength,sourceName:x.sourceName,sourceQuote:x.sourceQuote})),
+    evidenceGaps:loadEvidenceGaps()
   };
 }
 async function ensureRebuildPlan(saved,ai){
@@ -630,7 +656,7 @@ JD 深度分析：${JSON.stringify(saved.analysis||{})}
   const schema=`只返回严格 JSON，不要 Markdown：{"summary":"","projects":[{"title":"必须来自职业库","date":"","bullets":[]}],"experiences":[{"company":"必须来自职业库","position":"必须来自职业库","date":"","bullets":[]}],"skills":[],"certificates":[]}`;
   const versions={};
   let history=loadResumeHistory();
-  const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title||'未命名岗位',jd:saved.jd,generatedAt:new Date().toISOString(),versions:{},whyChanged:[],rebuildPlan:plan,status:'generating',version:'v5.5'};
+  const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title||'未命名岗位',jd:saved.jd,generatedAt:new Date().toISOString(),versions:{},whyChanged:[],rebuildPlan:plan,status:'generating',version:'v6.0'};
   history.unshift(item);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));
   const saveProgress=()=>{const idx=history.findIndex(x=>x.id===item.id);if(idx>=0){history[idx]=item;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));}};
   const jobs=[['targeted','Targeted（针对性重构版）','主力版本。按 JD 重新分配简历空间，优先展示能证明核心能力的真实经历；允许大幅重排、压缩、合并同一公司的真实事实。'],['keywordFocused','Keyword Focused（关键词强化版）','在 Targeted 逻辑基础上，更主动使用 JD 中与用户真实证据对应的关键词和表达，但不得为了关键词覆盖而虚构能力。']];

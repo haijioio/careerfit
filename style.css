@@ -76,7 +76,7 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
   .home-grid,.two-col{grid-template-columns:1fr}.profile-summary{grid-template-columns:repeat(2,1fr)}
   .card{padding:19px;border-radius:16px}.form-grid{grid-template-columns:1fr}
   .field.full{grid-column:auto}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:68px;background:rgba(255,255,255,.96);border-top:1px solid var(--line);z-index:30;justify-content:space-around;padding-bottom:env(safe-area-inset-bottom);backdrop-filter:blur(12px)}
-  .mobile-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:82px}.mobile-nav-btn span{font-size:18px}.mobile-nav-btn small{font-size:11px}.mobile-nav-btn.active{color:var(--text);font-weight:700}
+  .mobile-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;flex:1}.mobile-nav-btn span{font-size:18px}.mobile-nav-btn small{font-size:11px}.mobile-nav-btn.active{color:var(--text);font-weight:700}
   .experience-top{flex-direction:column}.actions .btn{flex:1}
 }
 .import-card{background:linear-gradient(180deg,#fff,#fafafa)}
@@ -155,3 +155,8 @@ textarea{min-height:115px;resize:vertical;line-height:1.55}
 .why-changed li{margin:8px 0}
 .why-changed li strong{display:block;margin-bottom:3px}
 @media(max-width:900px){.history-body .resume-version-grid{grid-template-columns:1fr}}
+
+/* V6 career evidence layer */
+.v6-import-panel{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:16px;padding:16px;border:1px dashed var(--border,#d7dce5);border-radius:14px;background:var(--surface-2,#f8fafc)}
+.evidence-list,.gap-list{display:grid;gap:12px;margin-top:14px}.evidence-card,.gap-card{border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:16px;background:#fff}.evidence-card p,.gap-card p{margin:8px 0;line-height:1.65}.gap-card{background:linear-gradient(180deg,#fff,#fafbff)}.evidence-preview{padding:14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;margin-top:14px}.fit-badge.high{border-color:#b7e3c1}.fit-badge.medium{border-color:#f0d48a}.fit-badge.low{border-color:#f0b4b4}.status-text.error{color:#b42318}.v6-import-panel .small-note{margin:5px 0 0}.v6-import-panel strong{display:block}.nav-btn,.mobile-nav-btn{white-space:nowrap}
+@media (max-width:760px){.v6-import-panel{display:block}.v6-import-panel .btn{margin-top:10px;width:100%}.two-col{grid-template-columns:1fr!important}.page-title h1{font-size:34px!important}}

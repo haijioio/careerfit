@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>莫楚欣 · AI产品经理 · 简历</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+@page { size: A4; margin: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  background: #eef1f5;
+  font-family: "PingFang SC","Microsoft YaHei","Hiragino Sans GB","Source Han Sans SC","Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #333;
+  padding-top: 54px;
+}
+/* ---------- 工具栏 ---------- */
+.toolbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px; padding: 9px 16px;
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(18,38,63,.07);
+}
+.tb-sep { width: 1px; height: 20px; background: #e2e8f0; margin: 0 3px; }
+.tb-btn {
+  width: 30px; height: 30px;
+  border: 1px solid transparent; border-radius: 6px;
+  background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: 13.5px; color: #33475b;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.tb-btn:hover { background: #eef3f8; }
+.tb-btn:active { background: #e2ecf5; }
+.tb-btn.active { background: #e3edf7; border-color: #c5d9ea; color: #1d4e7c; }
+.tb-select {
+  height: 30px; border: 1px solid #dbe3ec; border-radius: 6px;
+  background: #fff; color: #33475b;
+  font-family: inherit; font-size: 12.5px;
+  padding: 0 6px; cursor: pointer; outline: none;
+}
+.tb-select:hover { border-color: #b9cde0; }
+.tb-select:focus { border-color: #7ba7cd; box-shadow: 0 0 0 2px rgba(47,110,168,.12); }
+.tb-color {
+  width: 30px; height: 30px;
+  border: 1px solid #dbe3ec; border-radius: 6px;
+  background: #fff; cursor: pointer; padding: 2px;
+}
+.tb-color::-webkit-color-swatch-wrapper { padding: 0; }
+.tb-color::-webkit-color-swatch { border: none; border-radius: 4px; }
+.tb-check {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12.5px; color: #4a5c6e; cursor: pointer;
+  padding: 0 8px; height: 30px; border-radius: 6px;
+  user-select: none;
+}
+.tb-check:hover { background: #eef3f8; }
+.tb-check input { cursor: pointer; accent-color: #2f6ea8; }
+.tb-export {
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  color: #fff; background: linear-gradient(135deg,#2f6ea8,#1d4e7c);
+  border: none; padding: 0 20px; height: 30px;
+  border-radius: 7px; cursor: pointer; letter-spacing: .5px;
+  box-shadow: 0 3px 10px rgba(29,78,124,.26);
+  transition: transform .15s, box-shadow .15s, opacity .15s;
+}
+.tb-export:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(29,78,124,.34); }
+.tb-export:disabled { opacity: .6; cursor: wait; transform: none; }
+/* ---------- A4 ---------- */
+.page {
+  width: 210mm; height: 297mm;
+  padding: 36px 40px 32px;
+  background: #fff; margin: 16px auto 24px;
+  overflow: hidden; position: relative;
+  font-size: 13px; line-height: 1.6; color: #333;
+  box-shadow: 0 6px 32px rgba(18,38,63,.13);
+}
+.content { width: 100%; outline: none; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 1.1em; }
+.head-main { flex: 1 1 auto; min-width: 0; }
+.name { font-size: 2.05em; font-weight: 700; color: #14324f; letter-spacing: 3px; line-height: 1.2; }
+.meta { margin-top: .45em; font-size: .92em; color: #5a6b7d; display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; letter-spacing: .2px; }
+.meta .sep { color: #c8d2dc; }
+/* ---------- 证件照 ---------- */
+.photo-box {
+  position: relative; width: 90px; height: 120px;
+  flex: 0 0 auto; border: 1px solid #d3dbe4; border-radius: 3px;
+  overflow: hidden; background: #f5f8fb; cursor: pointer;
+  user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.photo-box.empty { border-style: dashed; border-color: #b9c6d4; }
+.photo-box.has-photo { cursor: grab; }
+.photo-box.has-photo:active { cursor: grabbing; }
+.photo-box canvas { width: 100%; height: 100%; display: none; }
+.photo-box.has-photo canvas { display: block; }
+.photo-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; color: #93a3b5; font-size: 10.5px; line-height: 1.35;
+  text-align: center; pointer-events: none;
+}
+.photo-box.has-photo .photo-empty { display: none; }
+.photo-tools {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; background: rgba(20,50,79,.82);
+  opacity: 0; transition: opacity .18s;
+}
+.photo-box:hover .photo-tools { opacity: 1; }
+.photo-tools button {
+  flex: 1 1 0; border: none; background: transparent; color: #fff;
+  font-family: inherit; font-size: 10.5px; padding: 4px 0;
+  cursor: pointer; letter-spacing: .5px;
+}
+.photo-tools button:hover { background: rgba(255,255,255,.2); }
+/* ---------- 章节 ---------- */
+.sec { margin-bottom: 1.05em; }
+.sec:last-child { margin-bottom: 0; }
+.sec-title {
+  display: flex; align-items: center; gap: .5em;
+  font-size: 1.1em; font-weight: 700; color: #1d4e7c;
+  letter-spacing: .06em; margin-bottom: .5em;
+}
+.sec-title::before {
+  content: ''; flex: 0 0 auto; width: 4px; height: 1.02em;
+  border-radius: 2px; background: linear-gradient(180deg,#3f81bd,#1d4e7c);
+}
+.sec-title::after {
+  content: ''; flex: 1 1 auto; height: 1px;
+  background: linear-gradient(90deg,#cfdcea,rgba(207,220,234,0));
+}
+.entry { margin-bottom: .55em; }
+.entry:last-child { margin-bottom: 0; }
+.entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
+.head-left { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.org { font-weight: 700; color: #1a2f45; font-size: 1.02em; letter-spacing: .2px; }
+.role { color: #5a6b7d; font-size: .95em; }
+.date { color: #7b8a99; font-size: .9em; white-space: nowrap; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.bullets { list-style: none; margin-top: .26em; }
+.bullets li {
+  position: relative; padding-left: 1.05em; margin-bottom: .14em;
+  color: #3d4b59; text-align: justify;
+}
+.bullets li:last-child { margin-bottom: 0; }
+.bullets li::before {
+  content: ''; position: absolute; left: .3em; top: .62em;
+  width: 4px; height: 4px; border-radius: 50%; background: #8aa7c4;
+}
+.plain { color: #3d4b59; text-align: justify; }
+/* ---------- 导出 / 打印 ---------- */
+.page.exporting .photo-tools,
+.page.exporting .photo-empty { display: none !important; }
+@media print {
+  body { background: #fff; padding-top: 0 !important; }
+  .toolbar { display: none !important; }
+  .page { margin: 0; box-shadow: none; }
+  .photo-tools, .photo-empty { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 工具栏 ==================== -->
+<div class="toolbar" id="toolbar">
+
+  <select class="tb-select" id="fontFamilySel" title="字体" style="width:118px">
+    <option value="">默认字体</option>
+    <option value="PingFang SC">苹方</option>
+    <option value="Microsoft YaHei">微软雅黑</option>
+    <option value="SimHei">黑体</option>
+    <option value="SimSun">宋体</option>
+    <option value="KaiTi">楷体</option>
+    <option value="Source Han Sans SC">思源黑体</option>
+    <option value="Arial">Arial</option>
+    <option value="Times New Roman">Times</option>
+    <option value="Georgia">Georgia</option>
+  </select>
+
+  <select class="tb-select" id="fontSizeSel" title="字号" style="width:76px">
+    <option value="auto">自动</option>
+    <option value="10">10</option>
+    <option value="11">11</option>
+    <option value="12">12</option>
+    <option value="13">13</option>
+    <option value="14">14</option>
+    <option value="15">15</option>
+    <option value="16">16</option>
+    <option value="18">18</option>
+    <option value="20">20</option>
+    <option value="22">22</option>
+    <option value="24">24</option>
+  </select>
+
+  <span class="tb-sep"></span>
+
+  <button class="tb-btn" type="button" data-cmd="bold" title="加粗 ⌘B"><b>B</b></button>
+  <button class="tb-btn" type="button" data-cmd="italic" title="斜体 ⌘I"><i>I</i></button>
+  <button class="tb-btn" type="button" data-cmd="underline" title="下划线 ⌘U"><u>U</u></button>
+
+  <span class="tb-sep"></span>
+
+  <input class="tb-color" type="color" id="fontColor" value="#333333" title="文字颜色">
+  <input class="tb-color" type="color" id="hlColor" value="#fff2a8" title="高亮背景">
+
+  <span class="tb-sep"></span>
+
+  <!-- 对齐按钮 -->
+  <button class="tb-btn" type="button" data-cmd="justifyLeft" title="左对齐">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2.5" width="14" height="1.5" rx=".75"/><rect x="1" y="6" width="9" height="1.5" rx=".75"/><rect x="1" y="9.5" width="14" height="1.5" rx=".75"/><rect x="1" y="13" width="9" height="1.5" rx=".75"/></svg>
+  </button>
+  <button class="tb-btn" type="button" data-cmd="justifyCenter" title="居中">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2.5" width="14" height="1.5" rx=".75"/><rect x="3.5" y="6" width="9" height="1.5" rx=".75"/><rect x="1" y="9.5" width="14" height="1.5" rx=".75"/><rect x="3.5" y="13" width="9" height="1.5" rx=".75"/></svg>
+  </button>
+  <button class="tb-btn" type="button" data-cmd="justifyRight" title="右对齐">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2.5" width="14" height="1.5" rx=".75"/><rect x="6" y="6" width="9" height="1.5" rx=".75"/><rect x="1" y="9.5" width="14" height="1.5" rx=".75"/><rect x="6" y="13" width="9" height="1.5" rx=".75"/></svg>
+  </button>
+  <button class="tb-btn" type="button" data-cmd="justifyFull" title="两端对齐">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2.5" width="14" height="1.5" rx=".75"/><rect x="1" y="6" width="14" height="1.5" rx=".75"/><rect x="1" y="9.5" width="14" height="1.5" rx=".75"/><rect x="1" y="13" width="14" height="1.5" rx=".75"/></svg>
+  </button>
+
+  <span class="tb-sep"></span>
+
+  <select class="tb-select" id="lineHeightSel" title="行距" style="width:96px">
+    <option value="1.4">行距 1.4</option>
+    <option value="1.6" selected>行距 1.6</option>
+    <option value="1.8">行距 1.8</option>
+    <option value="2.0">行距 2.0</option>
+  </select>
+
+  <span class="tb-sep"></span>
+
+  <!-- 清除格式 -->
+  <button class="tb-btn" type="button" id="clearFormatBtn" title="清除选中内容的格式">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9.5 2.5 2.5 9.5a1.5 1.5 0 0 0 0 2.1l1.9 1.9a1.5 1.5 0 0 0 2.1 0l7-7a1.5 1.5 0 0 0 0-2.1l-1.9-1.9a1.5 1.5 0 0 0-2.1 0z"/>
+      <path d="M6 6l4 4"/>
+      <path d="M7.5 13.5h7"/>
+    </svg>
+  </button>
+
+  <button class="tb-btn" type="button" id="undoBtn" title="撤销 ⌘Z">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/><path d="M5.5 4 3 6.5 5.5 9"/></svg>
+  </button>
+  <button class="tb-btn" type="button" id="redoBtn" title="重做 ⌘⇧Z">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/><path d="M10.5 4 13 6.5 10.5 9"/></svg>
+  </button>
+
+  <span class="tb-sep"></span>
+
+  <label class="tb-check" title="勾选后自动调整字号填满一页；手动改字号会自动取消">
+    <input type="checkbox" id="autoFitToggle" checked> 自动铺满
+  </label>
+
+  <button class="tb-export" type="button" id="exportBtn">导出 PDF</button>
+</div>
+
+<!-- ==================== A4 简历 ==================== -->
+<div class="page" id="page">
+  <div class="content" id="content" contenteditable="true" spellcheck="false">
+
+    <header class="header">
+      <div class="head-main">
+        <h1 class="name">莫楚欣</h1>
+        <div class="meta">
+          <span>2002.11</span>
+          <span class="sep">|</span>
+          <span>15812800294</span>
+          <span class="sep">|</span>
+          <span>mochuxin8@163.com</span>
+        </div>
+      </div>
+
+      <div class="photo-box empty" id="photoBox" contenteditable="false">
+        <canvas id="photoCanvas" width="180" height="240"></canvas>
+        <div class="photo-empty">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2"/>
+            <circle cx="8.5" cy="9.5" r="1.8"/>
+            <path d="M21 16l-5-5-6 6-3-3-4 4"/>
+          </svg>
+          <span>点击上传<br>证件照</span>
+        </div>
+        <div class="photo-tools" id="photoTools">
+          <button type="button" data-act="replace">更换</button>
+          <button type="button" data-act="delete">删除</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="sec">
+      <h2 class="sec-title">教育背景</h2>
+      <div class="entry">
+        <div class="entry-head">
+          <div class="head-left">
+            <span class="org">广州城市理工学院</span>
+            <span class="role">经济统计学 · 本科</span>
+          </div>
+          <span class="date">2020.09 - 2024.06</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2 class="sec-title">综合评价</h2>
+      <div class="plain">AI 原生产品构建者，专注于 AI 产品从 0→1 独立落地与 VibeCoding 实践。具备全栈开发能力，曾独立完成 CareerFit 与 MY1M 两大产品的全生命周期管理，涵盖需求拆解、交互设计、AI 辅助编码及 PWA 部署。擅长将大模型能力产品化，设计多 AI Provider 接入机制及异常处理流程。拥有数据驱动决策背景，能通过定量 / 定性分析精准识别用户痛点并优化产品闭环，具备极强的执行力与技术边界认知。</div>
+    </section>
+
+    <section class="sec">
+      <h2 class="sec-title">项目经历</h2>
+
+      <div class="entry">
+        <div class="entry-head">
+          <div class="head-left">
+            <span class="org">CareerFit</span>
+            <span class="role">AI 简历重构产品 · 独立开发</span>
+          </div>
+          <span class="date">2026.09</span>
+        </div>
+        <ul class="bullets">
+          <li>独立完成 AI 简历重构产品 0-1 落地，搭建「职业经历 → JD 分析 → 能力匹配 → 简历重构」完整流程，解决跨行业能力识别痛点</li>
+          <li>基于 VibeCoding / AI 辅助开发模式，实现 PDF / DOCX 解析、JD 截图识别及多版本简历生成，高效完成代码实现与功能验证</li>
+          <li>设计多 AI Provider 接入机制，支持用户自主配置、测试及切换 AI API，将大模型能力转化为可交付、可演示的产品功能</li>
+          <li>针对 AI 交互中的等待无反馈、重复请求及生成失败问题，设计 Loading 状态、错误反馈及局部重试机制，提升产品稳定性与用户体验</li>
+          <li>持续迭代版本，完成 GitHub Pages 部署，实现从需求定义到上线闭环的快速产品迭代</li>
+        </ul>
+      </div>
+
+      <div class="entry">
+        <div class="entry-head">
+          <div class="head-left">
+            <span class="org">MY1M</span>
+            <span class="role">个人净资产追踪 PWA · 独立开发</span>
+          </div>
+          <span class="date">2026.09</span>
+        </div>
+        <ul class="bullets">
+          <li>针对传统记账工具痛点，独立设计并开发个人净资产追踪 PWA，建立“资产记录 — 月度更新 — 趋势追踪 — 目标达成”产品闭环</li>
+          <li>通过 VibeCoding + AI 辅助完成代码生成、Bug 排查及 3 轮产品迭代，设计“分类延续、金额重置”机制降低用户录入成本</li>
+          <li>实现 PC / iPhone 多端支持、中英文切换及生物识别解锁功能，成功部署于 GitHub Pages，完成 0→1 产品上线落地</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2 class="sec-title">工作经历</h2>
+
+      <div class="entry">
+        <div class="entry-head">
+          <div class="head-left">
+            <span class="org">深圳市长音电子有限公司</span>
+            <span class="role">外贸业务员</span>
+          </div>
+          <span class="date">2026.04 - 2026.07</span>
+        </div>
+        <ul class="bullets">
+          <li>通过自主开发客户及二次激活策略，成功促成订单并实现 50% 的询盘转化率，体现主动型客户获取与高执行力落地能力</li>
+        </ul>
+      </div>
+
+      <div class="entry">
+        <div class="entry-head">
+          <div class="head-left">
+            <span class="org">广东领航包装彩印有限公司</span>
+            <span class="role">外贸业务员</span>
+          </div>
+          <span class="date">2024.04 - 2026.03</span>
+        </div>
+        <ul class="bullets">
+          <li>快速响应客户需求，询盘转化率达 70%；通过客户关系维护实现老客户复购率 40% 以上，具备敏锐的客户场景落地与痛点挖掘能力</li>
+          <li>全程跟进订单全流程（询价、报价、模型图制作、打样、生产、发货），确保按时交付，展现复杂业务流程管理与跨部门协调执行力</li>
+          <li>从零搭建并运营国际站店铺，完成 1000 条产品上架及主图 / 详情页优化，具备从 0 到 1 搭建业务体系及内容运营的闭环能力</li>
+        </ul>
+      </div>
+
+      <div class="entry">
+        <div class="entry-head">
+          <div class="head-left">
+            <span class="org">广州易察市场研究有限公司</span>
+            <span class="role">数据分析实习生</span>
+          </div>
+          <span class="date">2023.12 - 2024.03</span>
+        </div>
+        <ul class="bullets">
+          <li>执行 10000 条消费者数据的定量与定性分析，精准识别不同用户群体需求特征，为产品定位与活动策划提供数据驱动的决策支持</li>
+          <li>独立完成 5000 条数据清洗、标注及分析，提炼转化规律并提出优化方向，具备基于数据反馈优化产品体验的能力</li>
+          <li>监控核心指标波动情况并预警异常，通过数据复盘报告持续优化业务流程，体现严谨的数据闭环思维</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2 class="sec-title">证书技能</h2>
+      <div class="plain">大学英语六级证书、大学英语四级证书、计算机考试二级证书；Vibe Coding、Figma、SPSS</div>
+    </section>
+
+  </div>
+</div>
+
+<input type="file" id="photoInput" accept="image/*" hidden>
+
+<script>
+(function () {
+  'use strict';
+
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+
+  const pageEl    = document.getElementById('page');
+  const contentEl = document.getElementById('content');
+  const toolbar   = document.getElementById('toolbar');
+
+  /* ========== 粘贴智能处理（自动给日期套样式） ========== */
+  contentEl.addEventListener('paste', function (e) {
+    e.preventDefault();
+    let text = '';
+    if (e.clipboardData && e.clipboardData.getData) {
+      text = e.clipboardData.getData('text/plain') || '';
+    } else if (window.clipboardData) {
+      text = window.clipboardData.getData('Text') || '';
+    }
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // 转义 HTML 特殊字符
+    let escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // 自动识别日期格式（如 2023.10 - 2024.04）并套用简历的 date 样式
+    const dateRegex = /(\d{4}\.\d{2}\s*[-—–~]\s*\d{4}\.\d{2})/g;
+    let htmlText = escapedText.replace(dateRegex, '<span class="date">$1</span>');
+
+    document.execCommand('insertHTML', false, htmlText);
+    if (autoFitEnabled) scheduleFit();
+  });
+
+  /* 拖拽也强制纯文本并自动识别日期 */
+  contentEl.addEventListener('drop', function (e) {
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    e.preventDefault();
+    let text = dt.getData('text/plain') || '';
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const dateRegex = /(\d{4}\.\d{2}\s*[-—–~]\s*\d{4}\.\d{2})/g;
+    let htmlText = escapedText.replace(dateRegex, '<span class="date">$1</span>');
+    document.execCommand('insertHTML', false, htmlText);
+    if (autoFitEnabled) scheduleFit();
+  });
+
+  /* ========== 工具栏高度自适应 ========== */
+  function adjustBodyPadding() {
+    document.body.style.paddingTop = toolbar.offsetHeight + 'px';
+  }
+  window.addEventListener('resize', adjustBodyPadding);
+
+  /* ========== 选区保存 ========== */
+  let savedRange = null;
+  document.addEventListener('selectionchange', function () {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+      const r = sel.getRangeAt(0);
+      if (contentEl.contains(r.commonAncestorContainer)) savedRange = r.cloneRange();
+    }
+    updateToolbarState();
+  });
+  function restoreSelection() {
+    if (!savedRange) return false;
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    try { sel.addRange(savedRange); return true; } catch (e) { return false; }
+  }
+  function getBlock(node) {
+    if (!node) return null;
+    if (node.nodeType === 3) node = node.parentNode;
+    while (node && node !== contentEl) {
+      if (/^(P|LI|DIV|H1|H2|H3|H4|SECTION|BLOCKQUOTE|UL|OL)$/.test(node.nodeName)) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  toolbar.addEventListener('mousedown', function (e) {
+    if (e.target.closest('button')) e.preventDefault();
+  });
+
+  /* ========== 对齐功能（直接修改样式，兼容 flex 布局） ========== */
+  function applyAlignment(align) {
+    if (!savedRange) return;
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedRange);
+
+    let blocks = new Set();
+    const range = sel.getRangeAt(0);
+
+    if (!range.collapsed) {
+      const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_ELEMENT);
+      let n;
+      while ((n = walker.nextNode())) {
+        try {
+          if (range.intersectsNode(n)) {
+            const display = getComputedStyle(n).display;
+            if (/^(P|LI|DIV|H1|H2|H3|H4|SECTION|BLOCKQUOTE|UL|OL)$/.test(n.nodeName) || display.includes('flex')) {
+              blocks.add(n);
+            }
+          }
+        } catch(e) {}
+      }
+    }
+
+    if (blocks.size === 0) {
+      let b = getBlock(range.startContainer);
+      if (b) blocks.add(b);
+    }
+
+    if (blocks.size === 0) {
+      blocks.add(contentEl);
+    }
+
+    blocks.forEach(b => {
+      b.style.textAlign = align;
+      // 如果这是个 flex 容器（比如公司名和日期的排版），还要调整 justify-content
+      const display = getComputedStyle(b).display;
+      if (display.includes('flex')) {
+        if (align === 'left') b.style.justifyContent = 'flex-start';
+        if (align === 'center') b.style.justifyContent = 'center';
+        if (align === 'right') b.style.justifyContent = 'flex-end';
+        if (align === 'justify') b.style.justifyContent = 'space-between';
+      }
+    });
+
+    contentEl.focus();
+    scheduleFit();
+  }
+
+  /* ========== 工具栏点击事件 ========== */
+  toolbar.addEventListener('click', function (e) {
+    const btn = e.target.closest('button[data-cmd]');
+    if (!btn) return;
+    
+    const cmd = btn.dataset.cmd;
+    if (['justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull'].includes(cmd)) {
+       const alignMap = {
+         'justifyLeft': 'left',
+         'justifyCenter': 'center',
+         'justifyRight': 'right',
+         'justifyFull': 'justify'
+       };
+       applyAlignment(alignMap[cmd]);
+       return;
+    }
+    
+    restoreSelection();
+    document.execCommand(cmd, false, null);
+    contentEl.focus();
+    updateToolbarState();
+    scheduleFit();
+  });
+
+  /* ========== 撤销 / 重做 ========== */
+  document.getElementById('undoBtn').addEventListener('click', function () {
+    contentEl.focus();
+    document.execCommand('undo', false, null);
+    scheduleFit();
+  });
+  document.getElementById('redoBtn').addEventListener('click', function () {
+    contentEl.focus();
+    document.execCommand('redo', false, null);
+    scheduleFit();
+  });
+
+  /* ========== 字体 ========== */
+  const fontFamilySel = document.getElementById('fontFamilySel');
+  fontFamilySel.addEventListener('change', function () {
+    const font = this.value;
+    if (!font) return;
+    if (savedRange && !savedRange.collapsed) {
+      restoreSelection();
+      document.execCommand('fontName', false, font);
+    } else if (savedRange) {
+      const block = getBlock(savedRange.startContainer);
+      if (block) block.style.fontFamily = font;
+      else contentEl.style.fontFamily = font;
+    } else {
+      contentEl.style.fontFamily = font;
+    }
+    contentEl.focus();
+    scheduleFit();
+  });
+
+  /* ========== 字号 ========== */
+  const fontSizeSel = document.getElementById('fontSizeSel');
+  function applyFontSize(px) {
+    if (savedRange && !savedRange.collapsed) {
+      restoreSelection();
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontSize = px + 'px';
+      try { range.surroundContents(span); }
+      catch (err) {
+        try {
+          const frag = range.extractContents();
+          span.appendChild(frag);
+          range.insertNode(span);
+        } catch (err2) { return; }
+      }
+      sel.removeAllRanges();
+      const r = document.createRange();
+      r.selectNodeContents(span);
+      sel.addRange(r);
+      savedRange = r.cloneRange();
+    } else if (savedRange) {
+      const block = getBlock(savedRange.startContainer);
+      if (block) block.style.fontSize = px + 'px';
+      else contentEl.style.fontSize = px + 'px';
+    } else {
+      contentEl.style.fontSize = px + 'px';
+    }
+  }
+  fontSizeSel.addEventListener('change', function () {
+    const v = this.value;
+    if (v === 'auto') {
+      autoFitEnabled = true;
+      autoFitToggle.checked = true;
+      autoFit();
+      return;
+    }
+    autoFitEnabled = false;
+    autoFitToggle.checked = false;
+    applyFontSize(parseFloat(v));
+    contentEl.focus();
+    scheduleFit();
+  });
+
+  /* ========== 颜色 / 高亮 ========== */
+  document.getElementById('fontColor').addEventListener('input', function () {
+    restoreSelection();
+    document.execCommand('foreColor', false, this.value);
+    contentEl.focus();
+  });
+  document.getElementById('hlColor').addEventListener('input', function () {
+    restoreSelection();
+    document.execCommand('hiliteColor', false, this.value);
+    contentEl.focus();
+  });
+
+  /* ========== 行距（全局） ========== */
+  const lineHeightSel = document.getElementById('lineHeightSel');
+  lineHeightSel.addEventListener('change', function () {
+    contentEl.style.lineHeight = this.value;
+    if (autoFitEnabled) setTimeout(autoFit, 40);
+  });
+
+  /* ========== 清除选中内容格式 ========== */
+  document.getElementById('clearFormatBtn').addEventListener('click', function () {
+    if (!savedRange || savedRange.collapsed) {
+      alert('请先选中要清除格式的内容');
+      return;
+    }
+    restoreSelection();
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+
+    document.execCommand('removeFormat', false, null);
+
+    const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_ELEMENT);
+    const toClear = [];
+    let n;
+    while ((n = walker.nextNode())) {
+      try { if (range.intersectsNode(n)) toClear.push(n); } catch (e) {}
+    }
+    toClear.forEach(function (el) {
+      el.removeAttribute('style');
+      el.removeAttribute('class');
+      el.removeAttribute('color');
+      el.removeAttribute('face');
+      el.removeAttribute('size');
+      el.removeAttribute('align');
+    });
+
+    toClear.forEach(function (el) {
+      if (el.tagName === 'SPAN' && !el.getAttribute('style') && !el.getAttribute('class')) {
+        const parent = el.parentNode;
+        if (!parent) return;
+        while (el.firstChild) parent.insertBefore(el.firstChild, el);
+        parent.removeChild(el);
+      }
+    });
+
+    contentEl.focus();
+    if (autoFitEnabled) scheduleFit();
+  });
+
+  /* ========== 工具栏按钮 active 状态 ========== */
+  const stateCmds = ['bold','italic','underline'];
+  function updateToolbarState() {
+    stateCmds.forEach(function (cmd) {
+      const btn = toolbar.querySelector('button[data-cmd="' + cmd + '"]');
+      if (!btn) return;
+      let on = false;
+      try { on = document.queryCommandState(cmd); } catch (e) {}
+      btn.classList.toggle('active', on);
+    });
+    
+    // 手动更新对齐按钮的高亮状态
+    const alignBtns = toolbar.querySelectorAll('button[data-cmd^="justify"]');
+    if (alignBtns.length) {
+      let align = 'left';
+      if (savedRange) {
+        let b = getBlock(savedRange.startContainer);
+        if (b) {
+          const cs = getComputedStyle(b);
+          if (cs.textAlign === 'center') align = 'center';
+          if (cs.textAlign === 'right') align = 'right';
+          if (cs.textAlign === 'justify') align = 'justify';
+        }
+      }
+      alignBtns.forEach(btn => {
+        const cmd = btn.dataset.cmd;
+        let targetAlign = 'left';
+        if (cmd === 'justifyCenter') targetAlign = 'center';
+        if (cmd === 'justifyRight') targetAlign = 'right';
+        if (cmd === 'justifyFull') targetAlign = 'justify';
+        btn.classList.toggle('active', align === targetAlign);
+      });
+    }
+  }
+
+  /* ========== 自动铺满 ========== */
+  let autoFitEnabled = true;
+  const autoFitToggle = document.getElementById('autoFitToggle');
+
+  function autoFit() {
+    if (!autoFitEnabled) return;
+    const cs    = getComputedStyle(pageEl);
+    const avail = pageEl.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const MIN = 10.4, MAX = 13.8;
+    let lo = MIN, hi = MAX, best = MIN;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + hi) / 2;
+      contentEl.style.fontSize = mid + 'px';
+      const h = contentEl.getBoundingClientRect().height;
+      if (h <= avail - 2) { best = mid; lo = mid; }
+      else                { hi = mid; }
+    }
+    contentEl.style.fontSize = best.toFixed(2) + 'px';
+  }
+
+  let fitTimer = null;
+  function scheduleFit() {
+    if (!autoFitEnabled) return;
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(autoFit, 320);
+  }
+
+  contentEl.addEventListener('input', function () {
+    if (autoFitEnabled) scheduleFit();
+  });
+
+  autoFitToggle.addEventListener('change', function () {
+    autoFitEnabled = this.checked;
+    if (autoFitEnabled) {
+      fontSizeSel.value = 'auto';
+      autoFit();
+    }
+  });
+
+  window.addEventListener('resize', function () {
+    if (autoFitEnabled) autoFit();
+  });
+
+  window.addEventListener('load', function () {
+    adjustBodyPadding();
+    autoFit();
+    setTimeout(function () { adjustBodyPadding(); autoFit(); }, 150);
+  });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { adjustBodyPadding(); autoFit(); });
+  }
+
+  /* ========== 证件照 ========== */
+  const CW = 90, CH = 120, DPR = 2;
+  const photoBox    = document.getElementById('photoBox');
+  const photoCanvas = document.getElementById('photoCanvas');
+  const photoInput  = document.getElementById('photoInput');
+  const photoTools  = document.getElementById('photoTools');
+  const ctx         = photoCanvas.getContext('2d');
+  const pstate = { img: null, zoom: 1, offsetX: 0, offsetY: 0 };
+
+  function baseScale(img) { return Math.max(CW / img.naturalWidth, CH / img.naturalHeight); }
+  function clampOffsets() {
+    if (!pstate.img) return;
+    const s  = baseScale(pstate.img) * pstate.zoom;
+    const dw = pstate.img.naturalWidth * s;
+    const dh = pstate.img.naturalHeight * s;
+    const maxX = Math.max(0, (dw - CW) / 2);
+    const maxY = Math.max(0, (dh - CH) / 2);
+    pstate.offsetX = Math.min(maxX, Math.max(-maxX, pstate.offsetX));
+    pstate.offsetY = Math.min(maxY, Math.max(-maxY, pstate.offsetY));
+  }
+  function drawPhoto() {
+    ctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+    if (!pstate.img) return;
+    const img = pstate.img;
+    const s   = baseScale(img) * pstate.zoom;
+    const dw  = img.naturalWidth * s;
+    const dh  = img.naturalHeight * s;
+    const dx  = (CW - dw) / 2 + pstate.offsetX;
+    const dy  = (CH - dh) / 2 + pstate.offsetY;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, dx * DPR, dy * DPR, dw * DPR, dh * DPR);
+  }
+  function resetPhoto() {
+    pstate.img = null; pstate.zoom = 1; pstate.offsetX = 0; pstate.offsetY = 0;
+    ctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+    photoBox.classList.add('empty');
+    photoBox.classList.remove('has-photo');
+  }
+  function loadPhoto(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+      const img = new Image();
+      img.onload = function () {
+        pstate.img = img; pstate.zoom = 1; pstate.offsetX = 0; pstate.offsetY = 0;
+        photoBox.classList.remove('empty');
+        photoBox.classList.add('has-photo');
+        clampOffsets(); drawPhoto();
+      };
+      img.onerror = function () { alert('图片读取失败，请换一张试试'); };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  photoInput.addEventListener('change', function (e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadPhoto(file);
+    photoInput.value = '';
+  });
+  photoTools.addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    e.stopPropagation();
+    if (btn.dataset.act === 'replace') photoInput.click();
+    if (btn.dataset.act === 'delete')  resetPhoto();
+  });
+  let dragging = false, startX = 0, startY = 0, startOffX = 0, startOffY = 0;
+  photoBox.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.photo-tools')) return;
+    if (!pstate.img) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startOffX = pstate.offsetX; startOffY = pstate.offsetY;
+    if (photoBox.setPointerCapture) photoBox.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  photoBox.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    pstate.offsetX = startOffX + (e.clientX - startX);
+    pstate.offsetY = startOffY + (e.clientY - startY);
+    clampOffsets(); drawPhoto();
+    e.preventDefault();
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    if (photoBox.releasePointerCapture && e.pointerId != null) {
+      try { photoBox.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+  }
+  photoBox.addEventListener('pointerup', endDrag);
+  photoBox.addEventListener('pointercancel', endDrag);
+  photoBox.addEventListener('wheel', function (e) {
+    if (!pstate.img) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+    pstate.zoom = Math.min(6, Math.max(1, pstate.zoom * factor));
+    clampOffsets(); drawPhoto();
+  }, { passive: false });
+  photoBox.addEventListener('click', function (e) {
+    if (e.target.closest('.photo-tools')) return;
+    if (!pstate.img) photoInput.click();
+  });
+
+  /* ========== 导出 PDF ========== */
+  const exportBtn = document.getElementById('exportBtn');
+  exportBtn.addEventListener('click', async function () {
+    if (typeof html2pdf === 'undefined') { window.print(); return; }
+    const oldText = exportBtn.textContent;
+    exportBtn.disabled = true;
+    exportBtn.textContent = '生成中…';
+    pageEl.classList.add('exporting');
+    const prevShadow = pageEl.style.boxShadow;
+    const prevMargin = pageEl.style.margin;
+    pageEl.style.boxShadow = 'none';
+    pageEl.style.margin = '0';
+    const opt = {
+      margin: 0,
+      filename: (document.title||'CareerFit简历').replace(/[\\/:*?"<>|]/g,'-')+'.pdf',
+      image: { type: 'jpeg', quality: 0.99 },
+      html2canvas: {
+        scale: 3, useCORS: true, allowTaint: false,
+        backgroundColor: '#ffffff', scrollX: 0, scrollY: 0,
+        windowWidth: pageEl.scrollWidth, windowHeight: pageEl.scrollHeight
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    };
+    try {
+      await html2pdf().set(opt).from(pageEl).save();
+    } catch (err) {
+      console.error(err);
+      alert('导出失败，请重试（或使用浏览器打印另存为 PDF）');
+    } finally {
+      pageEl.classList.remove('exporting');
+      pageEl.style.boxShadow = prevShadow;
+      pageEl.style.margin = prevMargin;
+      exportBtn.disabled = false;
+      exportBtn.textContent = oldText;
+    }
+  });
+
+})();
+</script>
+<script>
+(function(){
+ const raw=localStorage.getItem('careerfit_template_payload_v61');if(!raw)return;
+ let payload;try{payload=JSON.parse(raw)}catch{return}const r=payload.resume||{};
+ const content=document.getElementById('content');if(!content)return;
+ function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text||'');return el}
+ function section(title){const s=node('section','sec');s.append(node('h2','sec-title',title));content.append(s);return s}
+ function entry(s,name,role,date,bullets){const e=node('div','entry'),head=node('div','entry-head'),left=node('div','head-left');left.append(node('span','org',name));if(role)left.append(node('span','role',role));head.append(left,node('span','date',date));e.append(head);if(bullets?.length){const ul=node('ul','bullets');bullets.forEach(b=>ul.append(node('li','',b)));e.append(ul)}s.append(e)}
+ content.replaceChildren();const header=node('header','header'),main=node('div','head-main');main.append(node('h1','name',r.personal?.name||''));const meta=node('div','meta');[r.personal?.phone,r.personal?.email,r.personal?.location].filter(Boolean).forEach((v,i)=>{if(i)meta.append(node('span','sep','|'));meta.append(node('span','',v))});main.append(meta);header.append(main);content.append(header);
+ if(r.education?.length){const s=section('教育背景');r.education.forEach(e=>entry(s,e.school||e.raw||'',e.degree||'',[e.start,e.end].filter(Boolean).join(' - '),[]))}
+ if(r.summary){const s=section('综合评价');s.append(node('div','plain',r.summary))}
+ if(r.projects?.length){const s=section('项目经历');r.projects.forEach(x=>entry(s,x.title,'',x.date,x.bullets||[]))}
+ if(r.experiences?.length){const s=section('工作经历');r.experiences.forEach(x=>entry(s,x.company,x.position,x.date,x.bullets||[]))}
+ if(r.skills?.length||r.certificates?.length){const s=section('证书技能');s.append(node('div','plain',[...(r.certificates||[]),...(r.skills||[])].join('；')))}
+ document.title=(r.personal?.name||'CareerFit')+' · '+(payload.jobTitle||'定制简历');
+ const btn=document.getElementById('exportBtn');if(btn)btn.title='导出 PDF；如超出一页请先精简内容';
+ window.dispatchEvent(new Event('resize'));
+})();
+</script>
+</body>
+</html>

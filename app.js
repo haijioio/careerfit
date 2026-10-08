@@ -553,7 +553,7 @@ function resumePlainText(r){
 let templateSourcePromise = null;
 async function getResumeTemplateSource(){
   if(!templateSourcePromise){
-    templateSourcePromise=fetch('resume-template.html',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('无法读取原始简历 HTML 模板');return r.text();});
+    templateSourcePromise=fetch('resume-template.html?careerfit=20261008-r7',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('无法读取原始简历 HTML 模板');return r.text();});
   }
   return templateSourcePromise;
 }
@@ -658,6 +658,7 @@ function printResume(id,key){
     setTimeout(()=>{try{w.focus();w.print();}catch{}},500);
   }).catch(e=>toast('PDF/打印生成失败：'+friendlyError(e)));
 }
+function sanitizeFilename(v){return String(v||'简历').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim().replace(/[. ]+$/,'')||'简历';}
 function downloadResumeHtml(id,key){
   const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];
   if(!r)return;
@@ -666,7 +667,7 @@ function downloadResumeHtml(id,key){
     const h=loadResumeHistory(),it=h.find(x=>x.id===id);
     if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}
     const blob=new Blob([html],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=`CareerFit-${item.jobTitle||'简历'}-${key}.html`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    a.href=url;const safeJob=sanitizeFilename(item.jobTitle||'简历');const versionName=key==='targeted'?'针对性重构':key==='keywordFocused'?'关键词强化':key;a.download=`${safeJob}-${versionName}.html`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }).catch(e=>toast('HTML生成失败：'+friendlyError(e)));
 }
 function renderHistoryItem(x){

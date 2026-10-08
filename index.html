@@ -34,7 +34,25 @@
   </div>
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
-  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{}));}</script>
+  <script src="app.js?v=20261008-r7"></script>
+  <script>
+const CAREERFIT_BUILD="2026-10-08-r7";
+if("serviceWorker" in navigator){
+  window.addEventListener("load",async()=>{
+    try{
+      const oldBuild=localStorage.getItem("careerfit_build");
+      if(oldBuild!==CAREERFIT_BUILD){
+        const regs=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r=>r.unregister()));
+        if(window.caches){const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));}
+        localStorage.setItem("careerfit_build",CAREERFIT_BUILD);
+        location.reload();
+        return;
+      }
+      await navigator.serviceWorker.register("service-worker.js?v=20261008-r7");
+    }catch(e){}
+  });
+}
+</script>
 </body>
 </html>

@@ -934,13 +934,16 @@ html, body {
  function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text||'');return el}
  function section(title){const s=node('section','sec');s.append(node('h2','sec-title',title));content.append(s);return s}
  function entry(s,name,role,date,bullets){const e=node('div','entry'),head=node('div','entry-head'),left=node('div','head-left');left.append(node('span','org',name));if(role)left.append(node('span','role',role));head.append(left,node('span','date',date));e.append(head);if(bullets?.length){const ul=node('ul','bullets');bullets.forEach(b=>ul.append(node('li','',b)));e.append(ul)}s.append(e)}
- content.replaceChildren();const header=node('header','header'),main=node('div','head-main');main.append(node('h1','name',r.personal?.name||''));const meta=node('div','meta');[r.personal?.phone,r.personal?.email,r.personal?.location].filter(Boolean).forEach((v,i)=>{if(i)meta.append(node('span','sep','|'));meta.append(node('span','',v))});main.append(meta);header.append(main);content.append(header);
- if(r.education?.length){const s=section('教育背景');r.education.forEach(e=>entry(s,e.school||e.raw||'',e.degree||'',[e.start,e.end].filter(Boolean).join(' - '),[]))}
+ const existingHeader=content.querySelector('.header');const existingEducation=content.querySelector('.sec');const originalName=existingHeader?.querySelector('.name')?.textContent||'';const originalMeta=existingHeader?.querySelector('.meta')?.textContent||'';
+ content.querySelectorAll(':scope > .sec').forEach(x=>x.remove());
+ if(existingHeader){const name=existingHeader.querySelector('.name');if(name&&r.personal?.name)name.textContent=r.personal.name;const meta=existingHeader.querySelector('.meta');const details=[r.personal?.phone,r.personal?.email,r.personal?.location].filter(Boolean);if(meta&&details.length){meta.replaceChildren();details.forEach((v,i)=>{if(i)meta.append(node('span','sep','|'));meta.append(node('span','',v))})}}
+ else {const header=node('header','header'),main=node('div','head-main');main.append(node('h1','name',r.personal?.name||''));header.append(main);content.prepend(header)}
+ if(r.education?.length){const s=section('教育背景');r.education.forEach(e=>entry(s,e.school||e.raw||'',e.degree||'',[e.start,e.end].filter(Boolean).join(' - '),[]))}else if(existingEducation){content.append(existingEducation)}
  if(r.summary){const s=section('综合评价');s.append(node('div','plain',r.summary))}
  if(r.projects?.length){const s=section('项目经历');r.projects.forEach(x=>entry(s,x.title,'',x.date,x.bullets||[]))}
  if(r.experiences?.length){const s=section('工作经历');r.experiences.forEach(x=>entry(s,x.company,x.position,x.date,x.bullets||[]))}
  if(r.skills?.length||r.certificates?.length){const s=section('证书技能');s.append(node('div','plain',[...(r.certificates||[]),...(r.skills||[])].join('；')))}
- document.title=(r.personal?.name||'CareerFit')+' · '+(payload.jobTitle||'定制简历');
+ document.title=(r.personal?.name||originalName||'CareerFit')+' · '+(payload.jobTitle||'定制简历');
  const btn=document.getElementById('exportBtn');if(btn)btn.title='导出 PDF；如超出一页请先精简内容';
  window.dispatchEvent(new Event('resize'));
 })();

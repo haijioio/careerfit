@@ -582,7 +582,7 @@ function buildResumeTemplateHtml(template,r){
   const name=doc.querySelector('.name'); if(name)name.textContent=p.name||'';
   const meta=doc.querySelector('.header .meta');
   if(meta){meta.innerHTML='';const vals=[p.birth||'2002.11',p.phone,p.email].filter(Boolean);vals.forEach((v,i)=>{if(i){const sep=document.createElement('span');sep.className='sep';sep.textContent='|';meta.appendChild(sep);}const span=document.createElement('span');span.textContent=v;meta.appendChild(span);});}
-  const sections=[...doc.querySelectorAll('.content > .sec')];
+  const sections=[...doc.querySelectorAll('#content > .sec')];
   const findSection=t=>sections.find(sec=>sec.querySelector('.sec-title')?.textContent.trim()===t);
   const edu=findSection('教育背景');
   if(edu){const e=r.education?.[0]||{};const org=edu.querySelector('.org'),role=edu.querySelector('.role'),date=edu.querySelector('.date');if(org)org.textContent=e.school||e.raw||'';if(role)role.textContent=e.degree||'';if(date)date.textContent=e.start&&e.end?`${e.start} - ${e.end}`:'';}

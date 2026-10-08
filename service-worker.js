@@ -1,4 +1,4 @@
-const CACHE_NAME = "careerfit-v6.2-20261008-r7";
+const CACHE_NAME = "careerfit-v6.2-20261009-r8";
 const ASSETS = ["./","./index.html","./style.css","./app.js","./manifest.json","./icon.svg","./icon-180.png","./icon-192.png","./icon-512.png","./resume-template.html"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(()=>self.skipWaiting()));

@@ -7,7 +7,7 @@ const CURRENT_AI_KEY = "careerfit_current_ai_v5";
 const JD_KEY = "careerfit_jd_v5";
 const RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
 const AI_STATUS_KEY = "careerfit_ai_status_v51";
-const REBUILD_PLAN_VERSION = "v6.2";
+const REBUILD_PLAN_VERSION = "v6.0";
 const EVIDENCE_KEY = "careerfit_evidence_v6";
 const EVIDENCE_GAP_KEY = "careerfit_evidence_gaps_v6";
 
@@ -75,9 +75,8 @@ function safeAIText(value){
   if(Array.isArray(value))return value.map(safeAIText).filter(Boolean).join(" · ");
   if(typeof value==='object'){
     const preferred=['fact','source','change','reason','action','requirement','capability','evidence','text','label','name'];
-    const cn={fact:'事实',source:'来源',change:'调整',reason:'原因',action:'动作',requirement:'岗位要求',capability:'能力',evidence:'证据',text:'内容',label:'名称',name:'名称'};
     const parts=[];
-    preferred.forEach(k=>{if(value[k]!==undefined&&value[k]!==null&&String(value[k]).trim()!=='')parts.push(`${cn[k]||escapeHtml(k)}：${safeAIText(value[k])}`)});
+    preferred.forEach(k=>{if(value[k]!==undefined&&value[k]!==null&&String(value[k]).trim()!=='')parts.push(`${escapeHtml(k)}：${safeAIText(value[k])}`)});
     if(parts.length)return parts.join('；');
     return Object.values(value).map(safeAIText).filter(Boolean).join('；');
   }
@@ -126,29 +125,27 @@ function render(){
   else if(currentPage==="resumes") app.innerHTML=resumesPage();
   else app.innerHTML=settingsPage();
   updateNav();
+  hydrateResumeFrames();
 }
-const CHAT_KEY='careerfit_interview_chat_v61';
-function loadChat(){try{return JSON.parse(localStorage.getItem(CHAT_KEY)||'[]')}catch{return []}}
 function homePage(){
- const chat=loadChat();
- return `<div class="chat-shell"><div class="chat-heading"><p class="eyebrow">CareerFit · AI 职业访谈</p><h1>聊聊你真正做过的事。</h1><p class="sub">随便讲述工作或项目。AI 每轮成组追问、总结候选证据；确认后才进入长期经历库。</p><div class="actions"><button class="btn" onclick="openMarkdownImportModal()">📄 导入多份 Markdown</button><button class="btn" onclick="openResumeImportModal()">导入旧简历</button><button class="btn" onclick="setPage('evidence')">待确认证据（${profile.evidenceBank.filter(x=>!x.confirmed).length}）</button></div></div>
- <div class="chat-messages" id="chat-messages">${chat.length?chat.map(m=>`<div class="chat-bubble ${m.role==='user'?'user':'assistant'}"><span class="chat-role">${m.role==='user'?'我':'CareerFit AI'}</span><div class="chat-body">${escapeHtml(m.text).replace(/\n/g,'<br>')}</div></div>`).join(''):`<div class="chat-bubble assistant"><span class="chat-role">CareerFit AI</span><div class="chat-body">你好！先简单说说你做过什么工作或项目，不需要简历语言。我会一次问你一组问题，逐步挖掘真实案例。</div></div>`}</div>
- <form class="chat-composer" onsubmit="submitInterview(event)"><textarea id="chat-input" rows="4" placeholder="例如：我做过两年外贸，负责产品上架、客户沟通……" required></textarea><div class="actions"><span id="chat-status" class="hint" aria-live="polite">聊天保存在当前浏览器；AI 调用会将本轮相关资料发送给你配置的服务商。</span><button class="btn primary" id="chat-send" type="submit">发送给 AI ↗</button></div></form></div>`;
-}
-async function submitInterview(ev){
- ev.preventDefault();const area=document.getElementById('chat-input'),text=area?.value.trim();if(!text)return;
- const ai=getCurrentAI();if(!ai)return toast('请先在设置配置 AI');
- const chat=loadChat();chat.push({role:'user',text,at:new Date().toISOString()});localStorage.setItem(CHAT_KEY,JSON.stringify(chat));render();
- const status=document.getElementById('chat-status'),btn=document.getElementById('chat-send');if(btn)btn.disabled=true;if(status)status.textContent='AI 正在整理事实与下一组问题…';
- try{
- const context=chat.slice(-14).map(m=>`${m.role==='user'?'用户':'AI'}：${m.text}`).join('\n');
- const evidence=profile.evidenceBank.filter(e=>e.confirmed).slice(-35).map(e=>[e.title,e.scenario,e.behavior,e.result,e.boundary].filter(Boolean).join('｜')).join('\n');
- const prompt=`你是 CareerFit 职业访谈助手。只根据用户亲自陈述的事实提取候选证据，不能将AI曾提出的假设当作用户事实。每轮先总结本轮新增的事实，再针对最有价值的信息缺口成组提出5到8个具体问题；若用户说不记得，不重复追问。区分个人职责、估算与已验证结果；不要编造。用户可随时纠正事实。返回严格 JSON：{"reply":"自然、简洁的中文总结和下一组编号问题","candidates":[{"title":"","scenario":"","behavior":"","method":"","result":"","boundary":"","sourceQuote":"","strength":"B"}]}。只提取本轮用户新增且具体的事实，不要重复现有证据。\n现有已确认证据：${evidence.slice(0,14000)}\n最近对话：${context.slice(-26000)}`;
- const data=parseAIJSON(await callTrackedAI(ai,prompt));if(!data?.reply)throw Error('AI 没有返回有效访谈内容');
- const existing=new Set(profile.evidenceBank.map(e=>normalizeKey((e.title||'')+'|'+(e.sourceQuote||''))));let count=0;
- for(const c of Array.isArray(data.candidates)?data.candidates:[]){const key=normalizeKey((c.title||'')+'|'+(c.sourceQuote||''));if(!key||existing.has(key))continue;profile.evidenceBank.push({id:crypto.randomUUID(),...c,confirmed:false,source:'AI职业访谈',sourceName:'首页聊天',createdAt:new Date().toISOString()});existing.add(key);count++}
- chat.push({role:'assistant',text:String(data.reply)+(count?`\n\n本轮已生成 ${count} 条待确认事实，可前往证据库核对。`:''),at:new Date().toISOString()});localStorage.setItem(CHAT_KEY,JSON.stringify(chat));saveProfile();
- }catch(e){if(status)status.textContent='失败：'+friendlyError(e)+'。你的回答已经保留，可以重试。';if(btn)btn.disabled=false;}
+  const s=stats();
+  return `<section class="hero">
+    <p class="eyebrow">CareerFit V6</p>
+    <h1>把你真正做过的事，<br>沉淀成长期职业资产。</h1>
+    <p class="lead">上传简历，让 AI 挖掘证据并追问缺口；也可以导入你以前和其他 AI 聊过职业经历的 Markdown。最终统一沉淀进职业证据库，再用于 JD 匹配和简历重构。</p>
+  </section>
+  <div class="grid home-grid">
+    <section class="card">
+      <p class="eyebrow">我的职业资产</p><h2>${escapeHtml(profile.personal.name||"还没有开始整理")}</h2>
+      <div class="profile-summary">
+        <div class="stat"><strong>${s.experiences}</strong><span>工作经历</span></div><div class="stat"><strong>${s.projects}</strong><span>项目经历</span></div><div class="stat"><strong>${s.evidence}</strong><span>职业证据</span></div><div class="stat"><strong>${s.gaps}</strong><span>待完善</span></div>
+      </div>
+      <div class="actions"><button class="btn primary" onclick="setPage('profile')">进入职业资产</button><button class="btn" onclick="setPage('evidence')">查看证据库</button></div>
+    </section>
+    <section class="card"><p class="eyebrow">V6 核心闭环</p><h2>不是替你编简历，而是帮你把经历挖深。</h2>
+      <div class="quick-list"><div class="quick-item"><strong>① 上传简历</strong><span>AI 提取真实事实和证据链</span></div><div class="quick-item"><strong>② 导入职业 Markdown</strong><span>接入你过去和其他 AI 聊过的内容</span></div><div class="quick-item"><strong>③ 发现缺口</strong><span>AI 找到重要但证据不足的能力</span></div><div class="quick-item"><strong>④ 追问补全</strong><span>文字 / 语音回答，确认后沉淀职业资产</span></div></div>
+    </section>
+  </div>`;
 }
 function profilePage(){
   const s=stats();
@@ -287,7 +284,7 @@ function deleteSkill(i){profile.skills.splice(i,1);saveProfile();toast("技能�
 
 
 function openMarkdownImportModal(){openModal('导入职业 Markdown',`<div class="import-modal-copy"><p class="small-note">导入你以前和 ChatGPT、Claude、Gemini 等 AI 聊过职业经历、工作复盘、项目复盘的 Markdown。CareerFit 会尽量区分“用户说过的事实”和“AI 的分析/建议”。</p><div class="field"><label>选择 Markdown 文件</label><input id="md-files" class="file-input" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple></div><div id="md-import-status" class="hint"></div><div id="md-import-results"></div><div class="actions"><button class="btn" onclick="closeModal()">关闭</button><button class="btn primary" onclick="importMarkdownFiles()">导入并解析</button></div></div>`)}
-async function importMarkdownFiles(){const input=document.getElementById('md-files'),status=document.getElementById('md-import-status'),results=document.getElementById('md-import-results');if(!input?.files?.length)return toast('请选择 Markdown 文件');const ai=getCurrentAI();if(!ai)return toast('请先在设置里配置当前 AI');status.textContent='⏳ 正在读取并解析职业对话…';let added=0;for(const file of [...input.files]){try{const text=await file.text();if(!text.trim())throw new Error('文件为空');const prompt=`你是 CareerFit 的职业证据导入器。下面是一份用户从其他 AI 平台导出的职业/事业 Markdown 对话。你的任务是只提取用户自己明确陈述、描述或确认的职业事实。AI的评价、推测、建议、润色版本、假设案例、职业判断不能作为事实。不要编造任何信息。对每条事实建立候选证据，并尽量形成 evidence chain。返回严格 JSON：{"candidates":[{"title":"","capability":"","scenario":"","behavior":"","method":"","result":"","boundary":"","strength":"S/A/B/C","sourceQuote":""}]}。Markdown：\n${text.slice(0,100000)}`;const out=await callTrackedAI(ai,prompt);const data=parseAIJSON(out);const candidates=Array.isArray(data?.candidates)?data.candidates:[];const doc={id:crypto.randomUUID(),name:file.name,size:file.size,text,createdAt:new Date().toISOString(),candidateCount:candidates.length};profile.mdDocuments.push(doc);let fileAdded=0;for(const c of candidates){const duplicate=profile.evidenceBank.find(e=>normalizeKey(e.title||'')===normalizeKey(c.title||'')&&normalizeKey(e.sourceQuote||e.behavior||'')===normalizeKey(c.sourceQuote||c.behavior||''));if(duplicate)continue;const conflicts=profile.evidenceBank.filter(e=>normalizeKey(e.title||'')===normalizeKey(c.title||'')&&e.result&&c.result&&normalizeKey(e.result)!==normalizeKey(c.result));profile.evidenceBank.push({id:crypto.randomUUID(),...c,confirmed:false,source:'Markdown职业对话',sourceName:file.name,importConflict:conflicts.length?`同名案例存在不同结果：${conflicts.map(e=>e.result).join(' / ')}`:'',createdAt:new Date().toISOString()});fileAdded++}added+=fileAdded;results.insertAdjacentHTML('beforeend',`<div class="callout success-callout">✓ ${escapeHtml(file.name)} · 新增 ${fileAdded} 条待确认证据（已跳过完全重复内容），请到证据库核对冲突。</div>`)}catch(e){results.insertAdjacentHTML('beforeend',`<div class="callout error-callout">✕ ${escapeHtml(file.name)} · ${escapeHtml(friendlyError(e))}</div>`)}}saveProfile();status.textContent=`完成：新增 ${added} 条候选证据。`;}
+async function importMarkdownFiles(){const input=document.getElementById('md-files'),status=document.getElementById('md-import-status'),results=document.getElementById('md-import-results');if(!input?.files?.length)return toast('请选择 Markdown 文件');const ai=getCurrentAI();if(!ai)return toast('请先在设置里配置当前 AI');status.textContent='⏳ 正在读取并解析职业对话…';let added=0;for(const file of [...input.files]){try{const text=await file.text();if(!text.trim())throw new Error('文件为空');const prompt=`你是 CareerFit 的职业证据导入器。下面是一份用户从其他 AI 平台导出的职业/事业 Markdown 对话。你的任务是只提取用户自己明确陈述、描述或确认的职业事实。AI的评价、推测、建议、润色版本、假设案例、职业判断不能作为事实。不要编造任何信息。对每条事实建立候选证据，并尽量形成 evidence chain。返回严格 JSON：{"candidates":[{"title":"","capability":"","scenario":"","behavior":"","method":"","result":"","boundary":"","strength":"S/A/B/C","sourceQuote":""}]}。Markdown：\n${text.slice(0,100000)}`;const out=await callTrackedAI(ai,prompt);const data=parseAIJSON(out);const candidates=Array.isArray(data?.candidates)?data.candidates:[];const doc={id:crypto.randomUUID(),name:file.name,size:file.size,text,createdAt:new Date().toISOString(),candidateCount:candidates.length};profile.mdDocuments.push(doc);candidates.forEach(c=>profile.evidenceBank.push({id:crypto.randomUUID(),...c,confirmed:false,source:'Markdown职业对话',sourceName:file.name,createdAt:new Date().toISOString()}));added+=candidates.length;results.insertAdjacentHTML('beforeend',`<div class="callout success-callout">✓ ${escapeHtml(file.name)} · 发现 ${candidates.length} 条候选证据，请到职业证据库确认。</div>`)}catch(e){results.insertAdjacentHTML('beforeend',`<div class="callout error-callout">✕ ${escapeHtml(file.name)} · ${escapeHtml(friendlyError(e))}</div>`)}}saveProfile();status.textContent=`完成：新增 ${added} 条候选证据。`;}
 async function mineAllCareerEvidence(){const status=document.getElementById('profile-evidence-status');const ai=getCurrentAI();if(!ai)return toast('请先在设置里配置并测试一个当前 AI');const sources=(profile.sourceDocuments||[]).map(d=>`【简历：${d.name}】\n${d.text}`).join('\n\n');const md=(profile.mdDocuments||[]).map(d=>`【历史职业对话：${d.name}】\n${d.text}`).join('\n\n');const raw=(sources+'\n'+md).trim();if(!raw)return toast('请先上传简历或导入职业 Markdown');if(status)status.textContent='⏳ AI正在挖掘职业证据，并检查证据链完整度…';try{const prompt=`你是 CareerFit V6 的职业证据分析师。不要写简历。请从下面的职业材料中提取用户明确做过的事情，建立候选 Evidence。必须区分用户事实和 AI/文档中的推断；只记录可追溯事实。对每条证据输出场景、实际行为、方法/判断、结果、数据（如有）、事实边界、可迁移能力、证据强度。若证据链缺失，不要编造，而是为最重要的缺口生成一个高价值追问。返回严格 JSON：{"candidates":[{"title":"","capability":"","scenario":"","behavior":"","method":"","result":"","boundary":"","strength":"S/A/B/C","sourceName":"","sourceQuote":""}],"gaps":[{"capability":"","question":"","why":"","evidenceIds":[]}]}。材料：\n${raw.slice(0,140000)}`;const out=await callTrackedAI(ai,prompt);const data=parseAIJSON(out);const existing=new Set(loadEvidence().map(e=>normalizeKey((e.title||'')+'|'+(e.sourceQuote||e.fact||''))));for(const c of (data.candidates||[])){const key=normalizeKey((c.title||'')+'|'+(c.sourceQuote||c.fact||''));if(!existing.has(key)){profile.evidenceBank.push({id:crypto.randomUUID(),...c,confirmed:false,createdAt:new Date().toISOString()});existing.add(key)}}saveEvidenceGaps((data.gaps||[]).map(g=>({...g,id:crypto.randomUUID()})));saveProfile();if(status)status.textContent=`✓ 挖掘完成：当前共有 ${profile.evidenceBank.length} 条职业证据，${loadEvidenceGaps().length} 个待完善问题。`;setPage('evidence');}catch(e){if(status)status.textContent='❌ '+friendlyError(e);toast('证据挖掘失败：'+friendlyError(e));}}
 function openResumeImportModal(){
   openModal("上传已有简历",`<div class="import-modal-copy"><p class="small-note">一次选择一份或多份 PDF / DOCX。CareerFit 会先在浏览器中提取文字。成功读取后，你可以在工作经历或项目里按公司、岗位、时间定位内容。</p><div class="field"><label>选择简历</label><input id="resume-files" class="file-input" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple></div><div id="resume-import-status" class="hint" style="margin-top:10px"></div><div id="resume-import-results" style="margin-top:12px"></div><div class="actions"><button class="btn" onclick="closeModal()">关闭</button><button class="btn primary" onclick="extractResumeFilesOnly()">读取简历</button></div></div>`);
@@ -472,14 +469,9 @@ async function callAIJSON(prompt){return parseAIJSON(await callAI(getCurrentAI()
 async function callGeminiJSON(prompt){return callAIJSON(prompt)}
 
 
-let jdPastedImages=[];
-function jdPage(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{return null}})();return `<div class="page-title"><p class="eyebrow">JD 分析</p><h1 style="font-size:42px">粘贴 JD，找到真实证据。</h1><p class="lead">复制 JD 文字，或直接截图复制后在下面的框中按 ⌘V / Ctrl+V。图片无需另存为文件。</p></div><section class="card"><div class="form-grid"><div class="field full"><label>岗位名称（可选）</label><input id="jd-title" value="${escapeHtml(saved?.title||'')}" placeholder="例如：AI 产品经理"></div><div class="field full"><label>招聘 JD（可直接粘贴截图）</label><textarea id="jd-text" rows="13" onpaste="handleJdPaste(event)" placeholder="在这里粘贴文字，或直接粘贴截图。支持连续粘贴多张图片。">${escapeHtml(saved?.jd||'')}</textarea><div id="jd-pasted-preview" class="jd-pasted-preview"></div></div><div class="field full"><label>备用：上传 JD 截图文件</label><input id="jd-images" class="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple onchange="showJdImageNames(this.files)"><div id="jd-image-names" class="hint">也可以选择多张截图文件。</div></div></div><div class="actions"><button id="jd-ocr-btn" class="btn" onclick="recognizeJDScreenshots()">📷 识别图片文字</button><button id="jd-analyze-btn" class="btn primary" onclick="analyzeJD()">AI 分析 JD</button></div><div id="jd-status" class="hint ai-status"></div></section>${saved?.analysis?jdResult(saved.analysis):''}`}
-function handleJdPaste(e){const files=[...(e.clipboardData?.items||[])].filter(x=>x.kind==='file'&&x.type.startsWith('image/')).map(x=>x.getAsFile()).filter(Boolean);if(!files.length)return;e.preventDefault();jdPastedImages.push(...files);renderJdPastedPreview();setStatus('jd-status',`✓ 已粘贴 ${jdPastedImages.length} 张截图，正在自动识别…`,'success');recognizeJDScreenshots();}
-function renderJdPastedPreview(){const el=document.getElementById('jd-pasted-preview');if(!el)return;el.innerHTML=jdPastedImages.map((f,i)=>`<div class="jd-image-chip"><span>📷 截图 ${i+1} · ${Math.round(f.size/1024)} KB</span><button type="button" class="btn" onclick="removeJdPastedImage(${i})">移除</button></div>`).join('')}
-function removeJdPastedImage(i){jdPastedImages.splice(i,1);renderJdPastedPreview()}
+function jdPage(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{return null}})();return `<div class="page-title"><p class="eyebrow">JD 分析</p><h1 style="font-size:42px">把招聘 JD 放进来。</h1><p class="lead">能复制就直接粘贴；不能复制的招聘网站，也可以上传 JD 截图，让 AI 识别后再分析。</p></div><section class="card"><div class="form-grid"><div class="field full"><label>岗位名称（可选）</label><input id="jd-title" value="${escapeHtml(saved?.title||'')}" placeholder="例如：外贸业务员"></div><div class="field full"><label>招聘 JD</label><textarea id="jd-text" rows="14" placeholder="把招聘网站上的完整 JD 复制到这里">${escapeHtml(saved?.jd||'')}</textarea></div><div class="field full"><label>或者上传 JD 截图</label><input id="jd-images" class="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple onchange="showJdImageNames(this.files)"><div id="jd-image-names" class="hint">支持多张截图。识别后的文字会保存到本机，之后分析不会重复上传图片。</div></div></div><div class="actions"><button id="jd-ocr-btn" class="btn" onclick="recognizeJDScreenshots()">📷 AI识别截图</button><button id="jd-analyze-btn" class="btn primary" onclick="analyzeJD()">AI 分析 JD</button></div><div id="jd-status" class="hint ai-status"></div></section>${saved?.analysis?jdResult(saved.analysis):''}`}
 function showJdImageNames(files){const el=document.getElementById('jd-image-names');if(el)el.textContent=files?.length?`已选择 ${files.length} 张截图：${[...files].map(x=>x.name).join('、')}`:'支持多张截图。识别后的文字会保存到本机，之后分析不会重复上传图片。';}
 async function fileToImageData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const m=String(r.result).match(/^data:([^;]+);base64,(.*)$/);m?resolve({mimeType:m[1],data:m[2]}):reject(new Error('图片读取失败'));};r.onerror=()=>reject(new Error('图片读取失败'));r.readAsDataURL(file);});}
-async function recognizeJDScreenshots(){const input=document.getElementById('jd-images'),status=document.getElementById('jd-status');if(!jdPastedImages.length&&!input?.files?.length)return toast('请先粘贴或选择 JD 截图');if(!getCurrentAI())return toast('请先在设置里配置一个 AI');setActionBusy('jd-ocr-btn',true,'⏳ AI正在识别…');setActionBusy('jd-analyze-btn',true,'⏳ 请稍候…');setStatus('jd-status',`⏳ 正在识别 ${jdPastedImages.length+(input.files?.length||0)} 张 JD 截图，请稍候。`);try{const images=[];for(const f of [...jdPastedImages,...(input.files?[...input.files]:[])])images.push(await fileToImageData(f));const text=await callAI(getCurrentAI(),`请完整、准确地识别这些招聘 JD 截图中的文字。保持原有顺序和段落结构。不要总结，不要改写，不要补充不存在的内容。只返回识别到的 JD 原文。`,images);if(!text.trim())throw new Error('没有识别到有效文字');const field=document.getElementById('jd-text');field.value=[field.value.trim(),text.trim()].filter(Boolean).join('\n\n');jdPastedImages=[];if(input)input.value='';renderJdPastedPreview();const title=document.getElementById('jd-title')?.value.trim()||'';localStorage.setItem(JD_KEY,JSON.stringify({title,jd:field.value,analysis:null,createdAt:new Date().toISOString(),source:'image'}));setStatus('jd-status','✓ JD 截图识别完成。请检查识别文字，确认无误后再点击“AI 分析 JD”。','success');}catch(e){setStatus('jd-status',`❌ 截图识别失败：${friendlyError(e)}`,'error');}finally{setActionBusy('jd-ocr-btn',false);setActionBusy('jd-analyze-btn',false);}}
 function levelBadge(level){
   const v=String(level||'').toLowerCase();
   if(v.includes('high')||v.includes('高度')||v.includes('strong')||v.includes('高')) return '<span class="fit-badge high">🟢 高度匹配</span>';
@@ -558,16 +550,66 @@ function resumePlainText(r){
   if(r.certificates?.length)lines.push('','证书',r.certificates.join(' · '));
   return lines.filter((x,i)=>x||i===0).join('\n');
 }
-function renderResumePaper(r){
+let templateSourcePromise = null;
+async function getResumeTemplateSource(){
+  if(!templateSourcePromise){
+    templateSourcePromise=fetch('resume-template.html',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('无法读取原始简历 HTML 模板');return r.text();});
+  }
+  return templateSourcePromise;
+}
+function setTemplateSection(section,title,entries){
+  const titleEl=section.querySelector('.sec-title');
+  if(titleEl)titleEl.textContent=title;
+  const first=section.querySelector('.entry');
+  const entriesWrap=section;
+  entriesWrap.querySelectorAll('.entry').forEach((el,i)=>{if(i>0)el.remove();});
+  if(!entries?.length){section.remove();return;}
+  const base=first;
+  if(!base)return;
+  const apply=(el,x)=>{
+    const org=el.querySelector('.org'),role=el.querySelector('.role'),date=el.querySelector('.date'),ul=el.querySelector('.bullets');
+    if(org)org.textContent=x.company||x.title||'';
+    if(role)role.textContent=x.position||'';
+    if(date)date.textContent=x.date||'';
+    if(ul){ul.innerHTML='';(x.bullets||[]).forEach(b=>{const li=document.createElement('li');li.textContent=String(b||'');ul.appendChild(li);});}
+  };
+  apply(base,entries[0]);
+  for(let i=1;i<entries.length;i++){const el=base.cloneNode(true);apply(el,entries[i]);entriesWrap.appendChild(el);}
+}
+function buildResumeTemplateHtml(template,r){
+  const doc=new DOMParser().parseFromString(template,'text/html');
   const p=r.personal||{};
-  return `<div class="resume-paper"><header class="resume-paper-head">${p.name?`<h2>${resumeEscapeText(p.name)}</h2>`:''}<div class="resume-headline">${resumeEscapeText(p.headline||'')}</div><div class="resume-contact">${[p.email,p.phone,p.location].filter(Boolean).map(resumeEscapeText).join(' · ')}</div></header>
-  ${r.summary?`<section class="resume-section"><h3>综合评价</h3><p>${resumeEscapeText(r.summary)}</p></section>`:''}
-  ${r.projects?.length?`<section class="resume-section"><h3>项目经历</h3>${r.projects.map(x=>`<article class="resume-entry"><div class="resume-entry-head"><strong>${resumeEscapeText(x.title)}</strong><span>${resumeEscapeText(x.date)}</span></div><ul>${(x.bullets||[]).map(b=>`<li>${resumeEscapeText(b)}</li>`).join('')}</ul></article>`).join('')}</section>`:''}
-  ${r.experiences?.length?`<section class="resume-section"><h3>工作经历</h3>${r.experiences.map(x=>`<article class="resume-entry"><div class="resume-entry-head"><div><strong>${resumeEscapeText(x.company)}</strong><span class="resume-position">${resumeEscapeText(x.position)}</span></div><span>${resumeEscapeText(x.date)}</span></div><ul>${(x.bullets||[]).map(b=>`<li>${resumeEscapeText(b)}</li>`).join('')}</ul></article>`).join('')}</section>`:''}
-  ${r.education?.length?`<section class="resume-section"><h3>教育背景</h3>${r.education.map(x=>`<div class="resume-fixed-line"><strong>${resumeEscapeText(x.school||x.raw||'')}</strong>${x.degree?`<span>${resumeEscapeText(x.degree)}</span>`:''}${x.start||x.end?`<span>${resumeEscapeText([x.start,x.end].filter(Boolean).join('—'))}</span>`:''}</div>`).join('')}</section>`:''}
-  ${r.skills?.length?`<section class="resume-section"><h3>专业技能</h3><p>${r.skills.map(resumeEscapeText).join(' · ')}</p></section>`:''}
-  ${r.certificates?.length?`<section class="resume-section"><h3>证书</h3><p>${r.certificates.map(resumeEscapeText).join(' · ')}</p></section>`:''}
-  </div>`;
+  const name=doc.querySelector('.name'); if(name)name.textContent=p.name||'';
+  const meta=doc.querySelector('.header .meta');
+  if(meta){meta.innerHTML='';const vals=[p.birth||'2002.11',p.phone,p.email].filter(Boolean);vals.forEach((v,i)=>{if(i){const sep=document.createElement('span');sep.className='sep';sep.textContent='|';meta.appendChild(sep);}const span=document.createElement('span');span.textContent=v;meta.appendChild(span);});}
+  const sections=[...doc.querySelectorAll('.content > .sec')];
+  const findSection=t=>sections.find(sec=>sec.querySelector('.sec-title')?.textContent.trim()===t);
+  const edu=findSection('教育背景');
+  if(edu){const e=r.education?.[0]||{};const org=edu.querySelector('.org'),role=edu.querySelector('.role'),date=edu.querySelector('.date');if(org)org.textContent=e.school||e.raw||'';if(role)role.textContent=e.degree||'';if(date)date.textContent=e.start&&e.end?`${e.start} - ${e.end}`:'';}
+  const summary=findSection('综合评价'); if(summary){const el=summary.querySelector('.plain');if(el)el.textContent=r.summary||'';if(!r.summary)summary.remove();}
+  const projects=findSection('项目经历');
+  if(projects)setTemplateSection(projects,'项目经历',(r.projects||[]).map(x=>({title:x.title,date:x.date,bullets:x.bullets})));
+  const works=findSection('工作经历');
+  if(works)setTemplateSection(works,'工作经历',(r.experiences||[]).map(x=>({company:x.company,position:x.position,date:x.date,bullets:x.bullets})));
+  const skills=findSection('证书技能');
+  if(skills){const el=skills.querySelector('.plain');const parts=[...(r.certificates||[]),...(r.skills||[])];if(el)el.textContent=parts.join('；');}
+  const content=doc.querySelector('#content');if(content)content.setAttribute('data-careerfit-generated','true');
+  const title=doc.querySelector('title');if(title)title.textContent=`${p.name||'CareerFit'} · 定制简历`;
+  return '<!DOCTYPE html>\n'+doc.documentElement.outerHTML;
+}
+async function adaptResumeToTemplate(r){const template=await getResumeTemplateSource();return buildResumeTemplateHtml(template,r);}
+function renderResumePaper(r){
+  return `<div class="template-placeholder"><p class="small-note">正在加载你的原始 HTML 简历模板…</p></div>`;
+}
+function hydrateResumeFrames(){
+  document.querySelectorAll('.resume-template-frame').forEach(frame=>{
+    if(frame.dataset.hydrated==='1')return;
+    const item=loadResumeHistory().find(x=>x.id===frame.dataset.historyId),r=item?.versions?.[frame.dataset.versionKey];
+    if(!r)return;
+    frame.dataset.hydrated='1';
+    if(r.templateHtml){frame.srcdoc=r.templateHtml;return;}
+    adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory();const it=h.find(x=>x.id===item.id);if(it?.versions?.[frame.dataset.versionKey]){it.versions[frame.dataset.versionKey].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}frame.srcdoc=html;}).catch(e=>{frame.replaceWith(Object.assign(document.createElement('div'),{className:'status-text error',textContent:'模板加载失败：'+friendlyError(e)}));});
+  });
 }
 function openResumeEditModal(historyId,key){
   const h=loadResumeHistory();const item=h.find(x=>x.id===historyId);const r=item?.versions?.[key];if(!item||!r)return;
@@ -577,39 +619,23 @@ function openResumeEditModal(historyId,key){
 function loadResumeHistory(){try{return JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{return[]}}
 function saveResumeEdit(e,id,key){e.preventDefault();const h=loadResumeHistory(),item=h.find(x=>x.id===id),r=item?.versions?.[key];if(!r)return; r.summary=document.getElementById('re-summary')?.value.trim()||'';(r.experiences||[]).forEach((x,i)=>{const el=document.getElementById(`re-${i}`);if(el)x.bullets=el.value.split(/\n+/).map(v=>v.trim()).filter(Boolean);});item.versions[key]=normalizeStructuredResume(r);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));closeModal();render();toast('简历已保存修改');}
 function copyResume(id,key){const item=loadResumeHistory().find(x=>x.id===id);const r=item?.versions?.[key];if(!r)return;navigator.clipboard?.writeText(resumePlainText(r)).then(()=>toast('已复制简历纯文本')).catch(()=>toast('复制失败，请检查浏览器权限'));}
-function printResume(id,key){const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;const w=window.open('','_blank');if(!w)return;w.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${resumeEscapeText(item.jobTitle||'CareerFit 简历')}</title><style>body{margin:0;background:#eee;font-family:Arial,'Microsoft YaHei',sans-serif}.resume-paper{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm;box-sizing:border-box;color:#111;line-height:1.55}.resume-paper-head{text-align:center;border-bottom:2px solid #111;padding-bottom:12px}.resume-paper-head h2{margin:0;font-size:25px}.resume-headline{font-size:14px;margin-top:5px}.resume-contact{font-size:11px;color:#555;margin-top:5px}.resume-section{margin-top:17px}.resume-section h3{font-size:15px;border-bottom:1px solid #ccc;padding-bottom:5px;margin:0 0 9px}.resume-section p{margin:0;font-size:12px}.resume-entry{margin:0 0 12px}.resume-entry-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.resume-position{margin-left:8px;font-weight:400}.resume-entry ul{margin:5px 0 0;padding-left:18px;font-size:11.5px}.resume-entry li{margin:3px 0}.resume-fixed-line{display:flex;gap:18px;font-size:12px;margin:6px 0}</style></head><body>${renderResumePaper(r)}<script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();}
-function isPredominantlyEnglish(value){const t=String(value||'').replace(/\b(?:JD|AI|API|B2B|PDF|HTML|CET|CareerFit|MY1M)\b/gi,'');const en=(t.match(/[A-Za-z]/g)||[]).length,cn=(t.match(/[\u3400-\u9fff]/g)||[]).length;return en>55&&en>cn*1.5;}
-function renderWhyChanged(items){
-  if(!Array.isArray(items)||!items.length)return '';
-  items=items.filter(x=>!isPredominantlyEnglish(typeof x==='string'?x:[x?.change,x?.reason,x?.explanation].filter(Boolean).join(' ')));
-  if(!items.length)return '<div class="hint">本次修改说明需要重新生成中文版本；简历正文不受影响。</div>';
-  return `<div class="match-box why-changed"><h3>为什么这样修改</h3><ul>${items.slice(0,8).map(x=>{
-    if(x&&typeof x==='object'){
-      const change=x.change||x.action||x.title||x.fact||'';
-      const reason=x.reason||x.explanation||x.source||'';
-      return `<li>${change?`<strong>${safeAIText(change)}</strong>`:''}${reason?`<div>${safeAIText(reason)}</div>`:(!change?safeAIText(x):'')}</li>`;
-    }
-    return `<li>${safeAIText(x)}</li>`;
-  }).join('')}</ul></div>`;
+function printResume(id,key){
+  const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;
+  const open=html=>{const w=window.open('','_blank');if(!w)return toast('浏览器阻止了新窗口，请允许弹窗');w.document.open();w.document.write(html);w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch{}},500);};
+  if(r.templateHtml){open(r.templateHtml);return;}
+  adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}open(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
 }
-async function regenerateChineseExplanation(id){
-  const item=loadResumeHistory().find(x=>x.id===id);if(!item)return;
-  const ai=getCurrentAI();if(!ai)return toast('请先配置 AI');
-  const el=document.getElementById('explain-status-'+id);if(el)el.textContent='正在生成中文修改说明…';
-  try{
-    const raw=await callTrackedAI(ai,`请全部用简体中文解释这次简历修改，不要出现英文完整句子。仅使用已确认的职业事实，不得把订单缺货写成催收或账单争议，不得把常规数据汇总写成异常预警、审计或合规报告。只返回严格 JSON 数组，最多6条，每项 {"change":"中文修改动作","reason":"中文依据与事实边界"}。\nJD：${item.jd}\n本次简历：${JSON.stringify(item.versions?.targeted||item.versions?.keywordFocused||{})}\n职业证据：${JSON.stringify(compactCareerEvidence())}`);
-    const parsed=parseAIJSON(raw);const rows=Array.isArray(parsed)?parsed:(parsed?.whyChanged||[]);
-    const clean=rows.filter(x=>!isPredominantlyEnglish([x?.change,x?.reason].join(' ')));
-    if(!clean.length)throw Error('AI 没有返回有效中文说明');
-    item.whyChanged=clean;const h=loadResumeHistory(),idx=h.findIndex(x=>x.id===id);h[idx]=item;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));render();toast('中文修改说明已更新');
-  }catch(e){if(el)el.textContent='生成失败：'+friendlyError(e)}
+function downloadResumeHtml(id,key){
+  const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;
+  const save=html=>{const blob=new Blob([html],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`CareerFit-${item.jobTitle||'简历'}-${key}.html`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  if(r.templateHtml)save(r.templateHtml);else adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}save(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
 }
 function renderHistoryItem(x){
   const when=x.generatedAt?new Date(x.generatedAt).toLocaleString('zh-CN',{hour12:false}):'时间未知';
   const label=x.jobTitle||x.title||'未命名岗位';
   const status=x.status==='partial'?' · 部分完成':'';
-  const versions=[['targeted','针对性重构版'],['keywordFocused','关键词强化版']];
-  return `<details class="resume-history-card"><summary><div><strong>${escapeHtml(label)}</strong><div class="meta">${escapeHtml(when)}${status}</div></div><span class="history-arrow">›</span></summary><div class="history-body">${x.rebuildPlan?renderRebuildPlan(x.rebuildPlan):''}${x.status==='partial'?'<div class="status-text error">本次生成未全部完成，已保留成功版本。回到 JD 分析页可重新生成。</div>':''}<div class="resume-version-grid">${versions.map(([k,label])=>x.versions?.[k]?`<article class="resume-version"><div class="section-head"><strong>${label}</strong><div class="actions compact"><button class="btn" onclick="openResumeEditModal('${x.id}','${k}')">编辑</button><button class="btn" onclick="copyResume('${x.id}','${k}')">复制</button><button class="btn primary" onclick="openTemplateResume('${x.id}','${k}')">打开可编辑 HTML / 导出 PDF</button></div></div>${x.versions[k]&&typeof x.versions[k]==='object'?renderResumePaper(x.versions[k]):`<div class="content-preview">${safeAIText(x.versions[k])}</div>`}</article>`:'').join('')}</div>${renderWhyChanged(x.whyChanged)}<div class="actions"><button class="btn" onclick="regenerateChineseExplanation('${x.id}')">重新生成中文修改说明</button></div><div class="hint" id="explain-status-${x.id}"></div></div></details>`;
+  const versions=[['targeted','Targeted · 针对性重构版 ⭐'],['keywordFocused','Keyword Focused · 关键词强化版']];
+  return `<details class="resume-history-card"><summary><div><strong>${escapeHtml(label)}</strong><div class="meta">${escapeHtml(when)}${status}</div></div><span class="history-arrow">›</span></summary><div class="history-body">${x.rebuildPlan?renderRebuildPlan(x.rebuildPlan):''}${x.status==='partial'?'<div class="status-text error">本次生成未全部完成，已保留成功版本。回到 JD 分析页可重新生成。</div>':''}<div class="resume-version-grid">${versions.map(([k,label])=>x.versions?.[k]?`<article class="resume-version"><div class="section-head"><strong>${label}</strong><div class="actions compact"><button class="btn" onclick="openResumeEditModal('${x.id}','${k}')">编辑内容</button><button class="btn" onclick="copyResume('${x.id}','${k}')">复制纯文本</button><button class="btn" onclick="downloadResumeHtml('${x.id}','${k}')">下载 HTML</button><button class="btn primary" onclick="printResume('${x.id}','${k}')">打开模板 / PDF</button></div></div><iframe class="resume-template-frame" title="${label}" data-history-id="${x.id}" data-version-key="${k}"></iframe></article>`:'').join('')}</div>${renderWhyChanged(x.whyChanged)}</div></details>`;
 }
 function resumesPage(){
   const h=loadResumeHistory();
@@ -639,7 +665,6 @@ async function generateResumeVersions(){
   let saved;try{saved=JSON.parse(localStorage.getItem(JD_KEY)||'null')}catch{}
   if(!saved?.jd)return toast('请先分析 JD');
   const ai=getCurrentAI();if(!ai)return toast('请先配置当前 AI');
-  if(!(profile.experiences||[]).length&&!(profile.projects||[]).length)return toast('请先在职业资产页建立工作或项目记录；仅导入 Markdown 候选证据还不足以生成结构化简历。');
   const statuses=getAIStatuses();if(statuses[ai.id]!=='success')return toast('当前 AI 尚未测试成功，请先到设置里测试连接');
   const btn=document.getElementById('resume-generate-btn');const status=btn?.closest('.card')?.querySelector('.resume-generation-status');
   if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='⏳ 正在重构…';}
@@ -665,7 +690,7 @@ JD 深度分析：${JSON.stringify(saved.analysis||{})}
 固定个人信息（仅当已有值时使用，不得生成占位文字）：${JSON.stringify(profile.personal||{})}
 
 固定教育背景：${JSON.stringify(fixedEdu)}`;
-  const rules=`你是 CareerFit 的 JD 驱动简历重构专家。输出中文简历，不得输出解释性英文段落。你的任务不是润色原简历，而是从用户全部真实经历中，重新组织一份“证明用户为什么适合该岗位”的简历。
+  const rules=`你是 CareerFit 的 JD 驱动简历重构专家。你的任务不是润色原简历，而是从用户全部真实经历中，重新组织一份“证明用户为什么适合该岗位”的简历。
 
 能力迁移原则（必须遵守）：
 1. 不得用职位名称、行业名称直接判断经历是否相关。必须从 JD 要求 → 能力 → 任务/行为 → 场景 → 真实证据建立匹配。
@@ -676,11 +701,11 @@ JD 深度分析：${JSON.stringify(saved.analysis||{})}
 6. 不得把非 AI 工作写成 AI 工作；不得把外贸、数据分析等经历虚构成产品经理经历。只能表达真实可迁移能力。
 7. 禁止编造或改变公司、职位、日期、客户、工具、技能、数字、职责、成果。所有数字必须原样保留。JD 中没有真实证据的能力只能作为缺口，绝不能写进简历。
 8. 项目只展示与目标 JD 有明确证明关系的项目；专业技能只从职业库已有技能中筛选；证书全部保留。个人信息和教育背景固定，不生成“未填写姓名”等任何占位内容。
-9. 不得把普通订单异常写成账单争议、催收、资金回笼；不得把常规数据统计写成异常预警、合规审计或财务报告；不得凭单次案例推断整体准时交付率、零投诉率等指标。\n10. Targeted 是最强的能力匹配重构；Keyword Focused 在不改变事实的前提下，更主动采用 JD 原文中真实匹配的关键词表达。两版都必须是完整、可投递的简历结构。`;
-  const schema=`简历正文与修改说明全部使用简体中文（JD中必须保留的专业英文术语除外）。只返回严格 JSON，不要 Markdown：{"summary":"","projects":[{"title":"必须来自职业库","date":"","bullets":[]}],"experiences":[{"company":"必须来自职业库","position":"必须来自职业库","date":"","bullets":[]}],"skills":[],"certificates":[]}`;
+9. Targeted 是最强的能力匹配重构；Keyword Focused 在不改变事实的前提下，更主动采用 JD 原文中真实匹配的关键词表达。两版都必须是完整、可投递的简历结构。`;
+  const schema=`只返回严格 JSON，不要 Markdown：{"summary":"","projects":[{"title":"必须来自职业库","date":"","bullets":[]}],"experiences":[{"company":"必须来自职业库","position":"必须来自职业库","date":"","bullets":[]}],"skills":[],"certificates":[]}`;
   const versions={};
   let history=loadResumeHistory();
-  const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title||'未命名岗位',jd:saved.jd,generatedAt:new Date().toISOString(),versions:{},whyChanged:[],rebuildPlan:plan,status:'generating',version:'v6.2'};
+  const item={id:crypto.randomUUID(),title:saved.title,jobTitle:saved.analysis?.jobTitle||saved.title||'未命名岗位',jd:saved.jd,generatedAt:new Date().toISOString(),versions:{},whyChanged:[],rebuildPlan:plan,status:'generating',version:'v6.0'};
   history.unshift(item);localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));
   const saveProgress=()=>{const idx=history.findIndex(x=>x.id===item.id);if(idx>=0){history[idx]=item;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(history));}};
   const jobs=[['targeted','Targeted（针对性重构版）','主力版本。按 JD 重新分配简历空间，优先展示能证明核心能力的真实经历；允许大幅重排、压缩、合并同一公司的真实事实。'],['keywordFocused','Keyword Focused（关键词强化版）','在 Targeted 逻辑基础上，更主动使用 JD 中与用户真实证据对应的关键词和表达，但不得为了关键词覆盖而虚构能力。']];
@@ -697,25 +722,21 @@ ${schema}
 
 ${baseContext}`);
         const parsed=parseAIJSON(raw);const normalized=normalizeStructuredResume(parsed);
-        if(!normalized.summary&&!normalized.experiences.length&&!normalized.projects.length)throw new Error('AI 返回的简历内容为空；请先在职业资产页确认公司、项目及证据。');
+        normalized.templateHtml=await adaptResumeToTemplate(normalized);
+        if(!normalized.summary&&!normalized.experiences.length&&!normalized.projects.length)throw new Error('AI 返回的简历内容为空');
         versions[key]=normalized;item.versions[key]=normalized;saveProgress();
       }catch(e){
-        item.status='partial';saveProgress();const reason=friendlyError(e);update(`❌ ${label}生成失败：${escapeHtml(reason)}<br>已保留此前成功生成的版本。请稍后重新生成。`);toast(`${label}生成失败：${reason}`);return;
+        item.status='partial';saveProgress();const reason=friendlyError(e);update(`❌ ${label}生成失败：${escapeHtml(reason)}<br>已保留此前成功生成的版本。<br><button class="btn" onclick="generateResumeVersions()">重新生成失败版本</button>`);toast(`${label}生成失败：${reason}`);return;
       }
     }
     update('✓ 两版结构化简历均已生成<br>⏳ 正在整理“为什么这样修改”…');
     try{
-      const why=await callAIJSON(`请全部使用简体中文，不得使用英文完整句子（公司名、产品名和JD英文关键词可保留）。根据 JD、重构方案、Targeted 简历和职业库，解释这次重构为什么这样做。重点说明：哪些能力被强化、哪些事实被弱化/省略、哪些项目/技能被选择，以及哪些 JD 要求仍然没有真实证据。必须尊重能力迁移原则：不同场景的可迁移能力可以共同证明同一 JD 能力，但不得混淆事实来源。返回严格 JSON 数组，最多8条，每项优先使用 {"change":"具体变化","reason":"具体原因"}。
+      const why=await callAIJSON(`根据 JD、重构方案、Targeted 简历和职业库，用中文解释这次重构为什么这样做。即使 JD 是英文，也必须用中文说明。重点说明：哪些能力被强化、哪些事实被弱化/省略、哪些项目/技能被选择，以及哪些 JD 要求仍然没有真实证据。必须尊重能力迁移原则：不同场景的可迁移能力可以共同证明同一 JD 能力，但不得混淆事实来源。返回严格 JSON 数组，最多8条，每项优先使用 {"change":"具体变化","reason":"具体原因"}。
 JD：${saved.jd}
 重构方案：${JSON.stringify(plan)}
 Targeted简历：${JSON.stringify(item.versions.targeted)}
 职业库：${JSON.stringify(compactCareerEvidence())}`);
-      let explanations=Array.isArray(why)?why:(Array.isArray(why?.whyChanged)?why.whyChanged:[]);
-      if(explanations.some(x=>isPredominantlyEnglish([x?.change,x?.reason,x?.explanation].filter(Boolean).join(' ')))){
-        const corrected=await callTrackedAI(ai,`请把下面的简历修改说明全部改写为简体中文。保留已有事实和意思，不增加未经证实的职责、数字、结果；不能把可迁移能力写成直接从事过的工作。只返回严格 JSON 数组，每项 {"change":"中文调整说明","reason":"中文理由"}：\n${JSON.stringify(explanations)}`);
-        const fixed=parseAIJSON(corrected);explanations=Array.isArray(fixed)?fixed:(fixed?.whyChanged||[]);
-      }
-      item.whyChanged=explanations.map(x=>typeof x==='string'?{change:x,reason:''}:x).filter(x=>!isPredominantlyEnglish([x.change,x.reason,x.explanation].filter(Boolean).join(' '))).slice(0,8);
+      item.whyChanged=Array.isArray(why)?why:(Array.isArray(why?.whyChanged)?why.whyChanged:[]);
     }catch(e){item.whyChanged=[];}
     item.versions={...versions};item.status='completed';saveProgress();
     update('✓ 两版结构化简历完成<br>已保存到「简历」页面。');setPage('resumes');
@@ -731,8 +752,40 @@ function importProfile(file){
   if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!data||!Array.isArray(data.experiences)||!Array.isArray(data.projects))throw new Error();profile={...blankProfile,...data,ai:{...blankProfile.ai,...(data.ai||{})}};saveProfile();toast("职业整理库已导入");}catch{alert("这不是有效的 CareerFit 职业整理库 JSON。")}};reader.readAsText(file);
 }
 
+
+let jdClipboardImages=[];
+function showClipboardJdImages(){
+  const el=document.getElementById('jd-image-names');if(!el)return;
+  if(jdClipboardImages.length){el.innerHTML=`已粘贴 ${jdClipboardImages.length} 张 JD 截图，可继续 ⌘V / Ctrl+V 添加。<br><span class="small-note">图片仅在点击“AI识别截图”时发送给当前 AI。</span>`;}
+}
+async function recognizeJDScreenshots(){
+  const input=document.getElementById('jd-images'),status=document.getElementById('jd-status');
+  const files=[...(input?.files||[])];
+  if(!files.length&&!jdClipboardImages.length)return toast('请先上传或粘贴 JD 截图');
+  const ai=getCurrentAI();if(!ai)return toast('请先在设置里配置一个 AI');
+  setActionBusy('jd-ocr-btn',true,'⏳ AI正在识别…');setActionBusy('jd-analyze-btn',true,'⏳ 请稍候…');
+  try{
+    const images=[];for(const f of [...files,...jdClipboardImages])images.push(await fileToImageData(f));
+    setStatus('jd-status',`⏳ 正在识别 ${images.length} 张 JD 截图，请稍候，不要重复点击。`);
+    const text=await callAI(ai,`请完整、准确地识别这些招聘 JD 截图中的文字。保持原有顺序和段落结构。不要总结、改写或补充不存在的内容。只返回识别到的 JD 原文。`,images);
+    if(!text.trim())throw new Error('没有识别到有效文字');
+    document.getElementById('jd-text').value=text.trim();
+    const title=document.getElementById('jd-title')?.value.trim()||'';
+    localStorage.setItem(JD_KEY,JSON.stringify({title,jd:text.trim(),analysis:null,createdAt:new Date().toISOString(),source:'image'}));
+    setStatus('jd-status','✓ JD 截图识别完成。请检查文字，确认无误后再点击“AI 分析 JD”。','success');
+  }catch(e){setStatus('jd-status',`❌ 截图识别失败：${friendlyError(e)}`,'error');}
+  finally{setActionBusy('jd-ocr-btn',false);setActionBusy('jd-analyze-btn',false);}
+}
+document.addEventListener('paste',e=>{
+  const target=e.target;
+  if(!(target instanceof HTMLTextAreaElement)||target.id!=='jd-text')return;
+  const items=[...(e.clipboardData?.items||[])];const imgs=items.filter(x=>x.type?.startsWith('image/'));
+  if(!imgs.length)return;
+  e.preventDefault();
+  imgs.forEach(item=>{const f=item.getAsFile();if(f)jdClipboardImages.push(f);});
+  showClipboardJdImages();toast(`已粘贴 ${imgs.length} 张 JD 截图`);
+});
+
 // Global navigation handler.
 document.addEventListener("click",event=>{const button=event.target.closest("[data-page]");if(!button)return;setPage(button.dataset.page);});
 render();
-
-function openTemplateResume(id,key){const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return toast('未找到简历');localStorage.setItem('careerfit_template_payload_v61',JSON.stringify({resume:r,jobTitle:item.jobTitle||'简历',createdAt:new Date().toISOString()}));const w=window.open('./resume-template.html','_blank');if(!w)toast('浏览器阻止了新窗口，请允许弹窗后重试');}

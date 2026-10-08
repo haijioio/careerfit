@@ -153,10 +153,12 @@ html, body {
 /* ---------- 导出 / 打印 ---------- */
 .page.exporting .photo-tools,
 .page.exporting .photo-empty { display: none !important; }
+.page { break-after: avoid-page; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+@media print { html, body { width: 210mm; min-height: 297mm; } .page { height: 296.8mm; min-height: 296.8mm; overflow: hidden; } }
 @media print {
   body { background: #fff; padding-top: 0 !important; }
   .toolbar { display: none !important; }
-  .page { margin: 0; box-shadow: none; }
+  .page { margin: 0; box-shadow: none; height: 296.9mm; break-after: avoid !important; page-break-after: avoid !important; }
   .photo-tools, .photo-empty { display: none !important; }
 }
 </style>
@@ -900,7 +902,7 @@ html, body {
     pageEl.style.margin = '0';
     const opt = {
       margin: 0,
-      filename: (document.title||'CareerFit简历').replace(/[\\/:*?"<>|]/g,'-')+'.pdf',
+      filename: '莫楚欣-AI产品经理-简历.pdf',
       image: { type: 'jpeg', quality: 0.99 },
       html2canvas: {
         scale: 3, useCORS: true, allowTaint: false,
@@ -908,7 +910,7 @@ html, body {
         windowWidth: pageEl.scrollWidth, windowHeight: pageEl.scrollHeight
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'] }
+      pagebreak: { mode: ['css'] }
     };
     try {
       await html2pdf().set(opt).from(pageEl).save();
@@ -924,28 +926,6 @@ html, body {
     }
   });
 
-})();
-</script>
-<script>
-(function(){
- const raw=localStorage.getItem('careerfit_template_payload_v61');if(!raw)return;
- let payload;try{payload=JSON.parse(raw)}catch{return}const r=payload.resume||{};
- const content=document.getElementById('content');if(!content)return;
- function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text||'');return el}
- function section(title){const s=node('section','sec');s.append(node('h2','sec-title',title));content.append(s);return s}
- function entry(s,name,role,date,bullets){const e=node('div','entry'),head=node('div','entry-head'),left=node('div','head-left');left.append(node('span','org',name));if(role)left.append(node('span','role',role));head.append(left,node('span','date',date));e.append(head);if(bullets?.length){const ul=node('ul','bullets');bullets.forEach(b=>ul.append(node('li','',b)));e.append(ul)}s.append(e)}
- const existingHeader=content.querySelector('.header');const existingEducation=content.querySelector('.sec');const originalName=existingHeader?.querySelector('.name')?.textContent||'';const originalMeta=existingHeader?.querySelector('.meta')?.textContent||'';
- content.querySelectorAll(':scope > .sec').forEach(x=>x.remove());
- if(existingHeader){const name=existingHeader.querySelector('.name');if(name&&r.personal?.name)name.textContent=r.personal.name;const meta=existingHeader.querySelector('.meta');const details=[r.personal?.phone,r.personal?.email,r.personal?.location].filter(Boolean);if(meta&&details.length){meta.replaceChildren();details.forEach((v,i)=>{if(i)meta.append(node('span','sep','|'));meta.append(node('span','',v))})}}
- else {const header=node('header','header'),main=node('div','head-main');main.append(node('h1','name',r.personal?.name||''));header.append(main);content.prepend(header)}
- if(r.education?.length){const s=section('教育背景');r.education.forEach(e=>entry(s,e.school||e.raw||'',e.degree||'',[e.start,e.end].filter(Boolean).join(' - '),[]))}else if(existingEducation){content.append(existingEducation)}
- if(r.summary){const s=section('综合评价');s.append(node('div','plain',r.summary))}
- if(r.projects?.length){const s=section('项目经历');r.projects.forEach(x=>entry(s,x.title,'',x.date,x.bullets||[]))}
- if(r.experiences?.length){const s=section('工作经历');r.experiences.forEach(x=>entry(s,x.company,x.position,x.date,x.bullets||[]))}
- if(r.skills?.length||r.certificates?.length){const s=section('证书技能');s.append(node('div','plain',[...(r.certificates||[]),...(r.skills||[])].join('；')))}
- document.title=(r.personal?.name||originalName||'CareerFit')+' · '+(payload.jobTitle||'定制简历');
- const btn=document.getElementById('exportBtn');if(btn)btn.title='导出 PDF；如超出一页请先精简内容';
- window.dispatchEvent(new Event('resize'));
 })();
 </script>
 </body>

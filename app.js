@@ -5,7 +5,9 @@ const GEMINI_MODEL = "gemini-3.8-flash";
 const AI_CONFIGS_KEY = "careerfit_ai_configs_v5";
 const CURRENT_AI_KEY = "careerfit_current_ai_v5";
 const JD_KEY = "careerfit_jd_v5";
-const RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
+const RESUME_HISTORY_KEY = "careerfit_resume_history_v6";
+const LEGACY_RESUME_HISTORY_KEY = "careerfit_resume_history_v5";
+const TEMPLATE_RENDER_VERSION = "template-v4";
 const AI_STATUS_KEY = "careerfit_ai_status_v51";
 const REBUILD_PLAN_VERSION = "v6.0";
 const EVIDENCE_KEY = "careerfit_evidence_v6";
@@ -607,8 +609,19 @@ function hydrateResumeFrames(){
     const item=loadResumeHistory().find(x=>x.id===frame.dataset.historyId),r=item?.versions?.[frame.dataset.versionKey];
     if(!r)return;
     frame.dataset.hydrated='1';
-    if(r.templateHtml){frame.srcdoc=r.templateHtml;return;}
-    adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory();const it=h.find(x=>x.id===item.id);if(it?.versions?.[frame.dataset.versionKey]){it.versions[frame.dataset.versionKey].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}frame.srcdoc=html;}).catch(e=>{frame.replaceWith(Object.assign(document.createElement('div'),{className:'status-text error',textContent:'模板加载失败：'+friendlyError(e)}));});
+    // Never trust a cached template from an older CareerFit build. Re-render the
+    // current structured AI result into the user's original HTML template.
+    adaptResumeToTemplate(r).then(html=>{
+      r.templateHtml=html;
+      r.templateRenderVersion=TEMPLATE_RENDER_VERSION;
+      const h=loadResumeHistory();const it=h.find(x=>x.id===item.id);
+      if(it?.versions?.[frame.dataset.versionKey]){
+        it.versions[frame.dataset.versionKey].templateHtml=html;
+        it.versions[frame.dataset.versionKey].templateRenderVersion=TEMPLATE_RENDER_VERSION;
+        localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));
+      }
+      frame.srcdoc=html;
+    }).catch(e=>{frame.replaceWith(Object.assign(document.createElement('div'),{className:'status-text error',textContent:'模板加载失败：'+friendlyError(e)}));});
   });
 }
 function openResumeEditModal(historyId,key){
@@ -616,25 +629,43 @@ function openResumeEditModal(historyId,key){
   const bulletRows=(r.experiences||[]).map((x,i)=>`<div class="field full"><label>${resumeEscapeText(x.company)} · ${resumeEscapeText(x.position)}</label><textarea id="re-${i}" rows="5">${resumeEscapeText((x.bullets||[]).join('\n'))}</textarea></div>`).join('');
   openModal('编辑简历',`<form onsubmit="saveResumeEdit(event,'${historyId}','${key}')" class="form-grid"><div class="field full"><label>综合评价</label><textarea id="re-summary" rows="6">${resumeEscapeText(r.summary)}</textarea></div>${bulletRows}<div class="hint field full">个人信息、教育背景、证书和项目筛选结果由 CareerFit 锁定；这里主要编辑综合评价和工作经历表达。</div><div class="actions field full"><button type="button" class="btn" onclick="closeModal()">取消</button><button class="btn primary">保存修改</button></div></form>`);
 }
-function loadResumeHistory(){try{return JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{return[]}}
+function loadResumeHistory(){
+  try{
+    const current=JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]');
+    if(Array.isArray(current)&&current.length)return current;
+    const legacy=JSON.parse(localStorage.getItem(LEGACY_RESUME_HISTORY_KEY)||'[]');
+    if(Array.isArray(legacy)&&legacy.length){
+      // Migrate records, but their cached HTML is intentionally discarded so the
+      // current user's template is rebuilt from the structured AI result.
+      const migrated=legacy.map(item=>{
+        const copy=structuredClone(item);
+        Object.values(copy.versions||{}).forEach(v=>{if(v)v.templateHtml='';v.templateRenderVersion='';});
+        return copy;
+      });
+      localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(migrated));
+      return migrated;
+    }
+    return [];
+  }catch{return[]}
+}
 async function saveResumeEdit(e,id,key){e.preventDefault();const h=loadResumeHistory(),item=h.find(x=>x.id===id),r=item?.versions?.[key];if(!r)return; r.summary=document.getElementById('re-summary')?.value.trim()||'';(r.experiences||[]).forEach((x,i)=>{const el=document.getElementById(`re-${i}`);if(el)x.bullets=el.value.split(/\n+/).map(v=>v.trim()).filter(Boolean);});item.versions[key]=normalizeStructuredResume(r);try{item.versions[key].templateHtml=await adaptResumeToTemplate(item.versions[key]);}catch(err){toast('内容已保存，但模板更新失败：'+friendlyError(err));}localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));closeModal();render();toast('简历已更新到你的 HTML 模板');}
 function copyResume(id,key){const item=loadResumeHistory().find(x=>x.id===id);const r=item?.versions?.[key];if(!r)return;navigator.clipboard?.writeText(resumePlainText(r)).then(()=>toast('已复制简历纯文本')).catch(()=>toast('复制失败，请检查浏览器权限'));}
 function openEditableResume(id,key){
   const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;
   const open=html=>{const w=window.open('','_blank');if(!w)return toast('浏览器阻止了新窗口，请允许弹窗');w.document.open();w.document.write(html);w.document.close();};
   // Always rebuild from the current structured version, so the editable HTML contains the AI-generated content.
-  adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}open(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
+  adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;r.templateRenderVersion=TEMPLATE_RENDER_VERSION;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}open(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
 }
 function printResume(id,key){
   const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;
   const open=html=>{const w=window.open('','_blank');if(!w)return toast('浏览器阻止了新窗口，请允许弹窗');w.document.open();w.document.write(html);w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch{}},500);};
   // Rebuild every time so PDF/print uses the latest generated or edited content.
-  adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}open(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
+  adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;r.templateRenderVersion=TEMPLATE_RENDER_VERSION;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}open(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
 }
 function downloadResumeHtml(id,key){
   const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];if(!r)return;
   const save=html=>{const blob=new Blob([html],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`CareerFit-${item.jobTitle||'简历'}-${key}.html`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-  if(r.templateHtml)save(r.templateHtml);else adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}save(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
+  if(r.templateHtml)save(r.templateHtml);else adaptResumeToTemplate(r).then(html=>{r.templateHtml=html;r.templateRenderVersion=TEMPLATE_RENDER_VERSION;const h=loadResumeHistory(),it=h.find(x=>x.id===id);if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}save(html);}).catch(e=>toast('模板生成失败：'+friendlyError(e)));
 }
 function renderHistoryItem(x){
   const when=x.generatedAt?new Date(x.generatedAt).toLocaleString('zh-CN',{hour12:false}):'时间未知';
@@ -729,6 +760,7 @@ ${schema}
 ${baseContext}`);
         const parsed=parseAIJSON(raw);const normalized=normalizeStructuredResume(parsed);
         normalized.templateHtml=await adaptResumeToTemplate(normalized);
+        normalized.templateRenderVersion=TEMPLATE_RENDER_VERSION;
         if(!normalized.summary&&!normalized.experiences.length&&!normalized.projects.length)throw new Error('AI 返回的简历内容为空');
         versions[key]=normalized;item.versions[key]=normalized;saveProgress();
       }catch(e){

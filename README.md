@@ -13,3 +13,6 @@ AI 驱动的长期职业资产与 JD 简历重构 PWA。
 
 ## 隐私
 职业资料、证据、JD 与生成历史默认保存在当前浏览器。调用 AI 时，只有主动提交给当前 AI 的内容会发送到对应服务商。
+
+
+R14 changes: preserve template sections when AI output is empty; confirmed education fallback; preserve original personal header if profile fields are blank; fallback to source work history when AI company names do not match; experience ordering remains newest-first.

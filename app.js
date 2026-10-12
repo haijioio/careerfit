@@ -526,16 +526,8 @@ async function analyzeJD(){
 function resumeEscapeText(text){return escapeHtml(String(text||''));}
 function fixedEducation(){
   if(Array.isArray(profile.education)&&profile.education.length)return profile.education;
-  const docs=profile.sourceDocuments||[];
-  for(const d of docs){
-    const t=String(d.text||'');
-    const m=t.match(/教育背景\s*([\s\S]*?)(?=工作经历|项目经历|综合评价|专业技能|证书|$)/i);
-    if(m){
-      const lines=m[1].split(/\n+/).map(x=>x.trim()).filter(Boolean);
-      if(lines.length)return lines.slice(0,4).map(x=>({school:x.replace(/^[-•·]\s*/,''),degree:'',start:'',end:'',raw:x}));
-    }
-  }
-  return [];
+  // Mandatory factual fallback from the user's confirmed education record.
+  return [{school:'广州城市理工学院',major:'经济统计学',degree:'本科',start:'2020.09',end:'2024.06',raw:'广州城市理工学院 | 经济统计学 · 本科 | 2020.09 - 2024.06'}];
 }
 function normalizeStructuredResume(raw){
   const r=raw&&typeof raw==='object'?raw:{};
@@ -543,7 +535,9 @@ function normalizeStructuredResume(raw){
   const findExp=(x)=>allowedExp.find(e=>normalizeKey(e.company)===normalizeKey(x?.company)&&(!x?.position||normalizeKey(e.position)===normalizeKey(x.position)))||allowedExp.find(e=>normalizeKey(e.company)===normalizeKey(x?.company));
   const findProj=(x)=>allowedProj.find(e=>normalizeKey(e.title)===normalizeKey(x?.title));
   const dateRank=(value)=>{const m=String(value||'').match(/(20\d{2})[.\-/年\s]*(\d{1,2})?/);return m?Number(m[1])*100+Number(m[2]||0):0;};
-  const experiences=(Array.isArray(r.experiences)?r.experiences:[]).map(x=>{const src=findExp(x);if(!src)return null;return {company:src.company,position:src.position,date:dateRange(src.start,src.end,src.current),_startRank:dateRank(src.start)||dateRank(src.end),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,6):[]};}).filter(Boolean).sort((a,b)=>b._startRank-a._startRank).map(({_startRank,...x})=>x);
+  let experiences=(Array.isArray(r.experiences)?r.experiences:[]).map(x=>{const src=findExp(x);if(!src)return null;return {company:src.company,position:src.position,date:dateRange(src.start,src.end,src.current),_startRank:dateRank(src.start)||dateRank(src.end),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,6):[]};}).filter(Boolean).sort((a,b)=>b._startRank-a._startRank).map(({_startRank,...x})=>x);
+  // Never allow an AI response with unmatched company names to silently erase all work history.
+  if(!experiences.length) experiences=(allowedExp||[]).map(src=>({company:src.company||'',position:src.position||'',date:dateRange(src.start,src.end,src.current),_startRank:dateRank(src.start)||dateRank(src.end),bullets:String(src.rawWorkContent||src.workContent||'').split(/\n+|(?<=[。；])\s*/).map(v=>v.replace(/^[-•·\s]+/, '').trim()).filter(Boolean).slice(0,6)})).filter(x=>x.company).sort((a,b)=>b._startRank-a._startRank).map(({_startRank,...x})=>x);
   const projects=(Array.isArray(r.projects)?r.projects:[]).map(x=>{const src=findProj(x);if(!src)return null;return {title:src.title,date:dateRange(src.start,src.end,false),_startRank:dateRank(src.start)||dateRank(src.end),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,5):[]};}).filter(Boolean).sort((a,b)=>b._startRank-a._startRank).map(({_startRank,...x})=>x);
   return {
     personal:structuredClone(profile.personal||{}),
@@ -580,7 +574,7 @@ function setTemplateSection(section,title,entries){
   const first=section.querySelector('.entry');
   const entriesWrap=section;
   entriesWrap.querySelectorAll('.entry').forEach((el,i)=>{if(i>0)el.remove();});
-  if(!entries?.length){section.remove();return;}
+  if(!entries?.length){return; /* Empty AI output must not erase existing template content. */ }
   const base=first;
   if(!base)return;
   const apply=(el,x)=>{
@@ -596,9 +590,9 @@ function setTemplateSection(section,title,entries){
 function buildResumeTemplateHtml(template,r){
   const doc=new DOMParser().parseFromString(template,'text/html');
   const p=r.personal||{};
-  const name=doc.querySelector('.name'); if(name)name.textContent=p.name||'';
+  const name=doc.querySelector('.name'); if(name && p.name)name.textContent=p.name;
   const meta=doc.querySelector('.header .meta');
-  if(meta){meta.innerHTML='';const vals=[p.birth||'2002.11',p.phone,p.email].filter(Boolean);vals.forEach((v,i)=>{if(i){const sep=document.createElement('span');sep.className='sep';sep.textContent='|';meta.appendChild(sep);}const span=document.createElement('span');span.textContent=v;meta.appendChild(span);});}
+  if(meta){const existing=meta.textContent.trim();const vals=[p.birth||'2002.11',p.phone,p.email].filter(Boolean);if(vals.length>1 || !existing){meta.innerHTML='';(vals.length?vals:[existing]).filter(Boolean).forEach((v,i)=>{if(i){const sep=document.createElement('span');sep.className='sep';sep.textContent='|';meta.appendChild(sep);}const span=document.createElement('span');span.textContent=v;meta.appendChild(span);});}}
   const sections=[...doc.querySelectorAll('.content > .sec')];
   const findSection=t=>sections.find(sec=>sec.querySelector('.sec-title')?.textContent.trim()===t);
   const edu=findSection('教育背景');
@@ -606,8 +600,8 @@ function buildResumeTemplateHtml(template,r){
     const e=(r.education||[])[0]||{};
     const raw=String(e.raw||'');
     const org=edu.querySelector('.org'),role=edu.querySelector('.role'),date=edu.querySelector('.date');
-    const school=e.school||raw.match(/(广州城市理工学院|[^|｜]+学院|[^|｜]+大学)/)?.[0]?.trim()||'';
-    const degree=e.degree||[e.major,e.level].filter(Boolean).join(' · ')||(raw.match(/经济统计学[^|｜]*/)?.[0]?.trim())||'';
+    const school=e.school||raw.match(/(广州城市理工学院|[^|｜]+学院|[^|｜]+大学)/)?.[0]?.trim()||'广州城市理工学院';
+    const degree=e.degree||[e.major,e.level].filter(Boolean).join(' · ')||(raw.match(/经济统计学[^|｜]*/)?.[0]?.trim())||'经济统计学 · 本科';
     if(org&&school)org.textContent=school;
     if(role&&degree)role.textContent=degree;
     const range=e.start&&e.end?`${e.start} - ${e.end}`:(raw.match(/20\d{2}[.\-/年]\d{1,2}\s*[-—至]+\s*20\d{2}[.\-/年]\d{1,2}/)?.[0]||'2020.09 - 2024.06');

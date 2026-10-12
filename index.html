@@ -34,23 +34,18 @@
   </div>
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261009-r8"></script>
+  <script src="app.js?v=20261012-r9"></script>
   <script>
-const CAREERFIT_BUILD="2026-10-08-r7";
-if("serviceWorker" in navigator){
-  window.addEventListener("load",async()=>{
-    try{
-      const oldBuild=localStorage.getItem("careerfit_build");
-      if(oldBuild!==CAREERFIT_BUILD){
-        const regs=await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r=>r.unregister()));
-        if(window.caches){const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));}
-        localStorage.setItem("careerfit_build",CAREERFIT_BUILD);
-        location.reload();
-        return;
-      }
-      await navigator.serviceWorker.register("service-worker.js?v=20261009-r8");
-    }catch(e){}
+// Recovery build: do not register a new Service Worker or force reloads.
+// Remove old registrations/caches in the background; the current page remains usable.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.getRegistrations()
+      .then(regs => Promise.all(regs.map(reg => reg.unregister())))
+      .catch(() => {});
+    if (window.caches) {
+      caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))).catch(() => {});
+    }
   });
 }
 </script>

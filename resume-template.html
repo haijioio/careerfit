@@ -153,12 +153,33 @@ html, body {
 /* ---------- 导出 / 打印 ---------- */
 .page.exporting .photo-tools,
 .page.exporting .photo-empty { display: none !important; }
-.page { break-after: avoid-page; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
-@media print { html, body { width: 210mm; min-height: 297mm; } .page { height: 296.8mm; min-height: 296.8mm; overflow: hidden; } }
+/* 不在屏幕预览中强行禁止分页；打印时由 A4 页面尺寸控制，避免额外空白页。 */
 @media print {
-  body { background: #fff; padding-top: 0 !important; }
+  @page { size: A4 portrait; margin: 0; }
+  html, body {
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+  }
   .toolbar { display: none !important; }
-  .page { margin: 0; box-shadow: none; height: 296.9mm; break-after: avoid !important; page-break-after: avoid !important; }
+  .page {
+    box-sizing: border-box !important;
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 0 !important;
+    max-height: 296mm !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+    break-before: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+  }
   .photo-tools, .photo-empty { display: none !important; }
 }
 </style>

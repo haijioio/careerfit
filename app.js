@@ -645,6 +645,16 @@ function openResumeEditModal(historyId,key){
 function loadResumeHistory(){try{return JSON.parse(localStorage.getItem(RESUME_HISTORY_KEY)||'[]')}catch{return[]}}
 function saveResumeEdit(e,id,key){e.preventDefault();const h=loadResumeHistory(),item=h.find(x=>x.id===id),r=item?.versions?.[key];if(!r)return; r.summary=document.getElementById('re-summary')?.value.trim()||'';(r.experiences||[]).forEach((x,i)=>{const el=document.getElementById(`re-${i}`);if(el)x.bullets=el.value.split(/\n+/).map(v=>v.trim()).filter(Boolean);});item.versions[key]=normalizeStructuredResume(r); item.versions[key].__versionKey=key; item.versions[key].__jobTitle=item.jobTitle||item.title||''; adaptResumeToTemplate(item.versions[key]).then(html=>{item.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));closeModal();render();toast('简历已保存修改');}).catch(e=>toast('保存模板失败：'+friendlyError(e)));}
 function copyResume(id,key){const item=loadResumeHistory().find(x=>x.id===id);const r=item?.versions?.[key];if(!r)return;navigator.clipboard?.writeText(resumePlainText(r)).then(()=>toast('已复制简历纯文本')).catch(()=>toast('复制失败，请检查浏览器权限'));}
+function openHtmlDocumentInWindow(win, html, {printAfterLoad=false} = {}) {
+  // Open a UTF-8 Blob URL rather than document.write() into about:blank.
+  // The latter can inherit a non-UTF-8 encoding in some browser contexts.
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  win.addEventListener('pagehide', () => { try { URL.revokeObjectURL(url); } catch {} }, { once: true });
+  if (printAfterLoad) win.addEventListener('load', () => setTimeout(() => { try { win.focus(); win.print(); } catch {} }, 350), { once: true });
+  win.location.replace(url);
+}
+
 function openGeneratedResumeHtml(id,key){
   const item=loadResumeHistory().find(x=>x.id===id),r=item?.versions?.[key];
   if(!r)return;
@@ -658,9 +668,7 @@ function openGeneratedResumeHtml(id,key){
   adaptResumeToTemplate(payload).then(html=>{
     const h=loadResumeHistory(),it=h.find(x=>x.id===id);
     if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+    openHtmlDocumentInWindow(w, html);
     try{w.focus();}catch{}
   }).catch(e=>{
     w.document.open();
@@ -679,8 +687,7 @@ function printResume(id,key){
     if(it?.versions?.[key]){it.versions[key].templateHtml=html;localStorage.setItem(RESUME_HISTORY_KEY,JSON.stringify(h));}
     const w=window.open('','_blank');
     if(!w)return toast('浏览器阻止了新窗口，请允许弹窗');
-    w.document.open();w.document.write(html);w.document.close();
-    setTimeout(()=>{try{w.focus();w.print();}catch{}},500);
+    openHtmlDocumentInWindow(w, html, {printAfterLoad:true});
   }).catch(e=>toast('PDF/打印生成失败：'+friendlyError(e)));
 }
 function sanitizeFilename(v){return String(v||'简历').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim().replace(/[. ]+$/,'')||'简历';}

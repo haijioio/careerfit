@@ -478,6 +478,20 @@ function levelBadge(level){
   if(v.includes('partial')||v.includes('部分')||v.includes('medium')||v.includes('中')) return '<span class="fit-badge medium">🟡 部分匹配</span>';
   return '<span class="fit-badge low">🔴 当前缺口</span>';
 }
+function renderWhyChanged(items){
+  // Render the Chinese explanation outside the resume document/PDF.
+  // This function is intentionally defensive: old history may contain strings,
+  // objects, null values, or a missing field.
+  const list=Array.isArray(items)?items:[];
+  if(!list.length) return '<section class="why-changed"><div class="section-head"><h3>为什么这样修改</h3></div><p class="small-note">本次没有保存修改说明。简历内容仍可查看和编辑。</p></section>';
+  return `<section class="why-changed"><div class="section-head"><h3>为什么这样修改</h3></div><div class="why-changed-list">${list.slice(0,12).map((item,i)=>{
+    if(typeof item==='string') return `<article class="why-changed-item"><strong>${i+1}. 修改说明</strong><p>${safeAIText(item)}</p></article>`;
+    const change=item&&typeof item==='object'?(item.change||item.title||item.action||item.fact||'修改说明'):'修改说明';
+    const reason=item&&typeof item==='object'?(item.reason||item.explanation||item.source||'') : '';
+    return `<article class="why-changed-item"><strong>${i+1}. ${safeAIText(change)}</strong>${reason?`<p>${safeAIText(reason)}</p>`:''}</article>`;
+  }).join('')}</div></section>`;
+}
+
 function renderRebuildPlan(plan){
   if(!plan)return '';
   const reqs=Array.isArray(plan.requirements)?plan.requirements:[];

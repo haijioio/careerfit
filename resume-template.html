@@ -909,39 +909,58 @@ html, body {
     if (!pstate.img) photoInput.click();
   });
 
-  /* ========== 导出 PDF ========== */
+  /* ========== 导出 PDF：单页 A4 定位渲染，避免 html2pdf 自动分页产生横向偏移/空白页 ========== */
   const exportBtn = document.getElementById('exportBtn');
   exportBtn.addEventListener('click', async function () {
-    if (typeof html2pdf === 'undefined') { window.print(); return; }
+    if (typeof html2canvas === 'undefined' || !(window.jspdf && window.jspdf.jsPDF)) {
+      window.print();
+      return;
+    }
     const oldText = exportBtn.textContent;
     exportBtn.disabled = true;
     exportBtn.textContent = '生成中…';
-    pageEl.classList.add('exporting');
-    const prevShadow = pageEl.style.boxShadow;
-    const prevMargin = pageEl.style.margin;
-    pageEl.style.boxShadow = 'none';
-    pageEl.style.margin = '0';
-    const opt = {
-      margin: 0,
-      filename: '莫楚欣-AI产品经理-简历.pdf',
-      image: { type: 'jpeg', quality: 0.99 },
-      html2canvas: {
-        scale: 3, useCORS: true, allowTaint: false,
-        backgroundColor: '#ffffff', scrollX: 0, scrollY: 0,
-        windowWidth: pageEl.scrollWidth, windowHeight: pageEl.scrollHeight
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css'] }
-    };
+    let staging = null;
     try {
-      await html2pdf().set(opt).from(pageEl).save();
+      // Render a clean, isolated copy at the top-left origin. Never capture the centered editor
+      // in the scrolling page, because its viewport offset can shift/crop the resulting canvas.
+      staging = document.createElement('div');
+      staging.setAttribute('aria-hidden', 'true');
+      staging.style.cssText = 'position:fixed;left:0;top:0;width:210mm;height:297mm;margin:0;padding:0;overflow:hidden;z-index:-1;background:#fff;pointer-events:none;';
+      const clone = pageEl.cloneNode(true);
+      clone.classList.add('exporting');
+      clone.style.cssText += ';position:relative!important;left:0!important;top:0!important;margin:0!important;width:210mm!important;height:297mm!important;min-height:297mm!important;max-height:297mm!important;transform:none!important;box-shadow:none!important;overflow:hidden!important;';
+      clone.querySelectorAll('.photo-tools,.photo-empty').forEach(el => el.style.setProperty('display','none','important'));
+      staging.appendChild(clone);
+      document.body.appendChild(staging);
+      // Let fonts and the clone's layout settle before rasterization.
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: false,
+        width: clone.offsetWidth,
+        height: clone.offsetHeight,
+        windowWidth: clone.offsetWidth,
+        windowHeight: clone.offsetHeight,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+        logging: false
+      });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      // Fit exactly one A4 page. This template is intentionally a one-page resume;
+      // an oversized canvas must not trigger html2pdf's accidental blank second page.
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      pdf.save('莫楚欣-AI产品经理-简历.pdf');
     } catch (err) {
-      console.error(err);
-      alert('导出失败，请重试（或使用浏览器打印另存为 PDF）');
+      console.error('PDF export failed:', err);
+      alert('导出失败，请重试，或使用浏览器打印另存为 PDF。');
     } finally {
-      pageEl.classList.remove('exporting');
-      pageEl.style.boxShadow = prevShadow;
-      pageEl.style.margin = prevMargin;
+      if (staging) staging.remove();
       exportBtn.disabled = false;
       exportBtn.textContent = oldText;
     }

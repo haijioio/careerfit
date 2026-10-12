@@ -542,8 +542,9 @@ function normalizeStructuredResume(raw){
   const allowedExp=profile.experiences||[], allowedProj=profile.projects||[];
   const findExp=(x)=>allowedExp.find(e=>normalizeKey(e.company)===normalizeKey(x?.company)&&(!x?.position||normalizeKey(e.position)===normalizeKey(x.position)))||allowedExp.find(e=>normalizeKey(e.company)===normalizeKey(x?.company));
   const findProj=(x)=>allowedProj.find(e=>normalizeKey(e.title)===normalizeKey(x?.title));
-  const experiences=(Array.isArray(r.experiences)?r.experiences:[]).map(x=>{const src=findExp(x);if(!src)return null;return {company:src.company,position:src.position,date:dateRange(src.start,src.end,src.current),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,6):[]};}).filter(Boolean);
-  const projects=(Array.isArray(r.projects)?r.projects:[]).map(x=>{const src=findProj(x);if(!src)return null;return {title:src.title,date:dateRange(src.start,src.end,false),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,5):[]};}).filter(Boolean);
+  const dateRank=(value)=>{const m=String(value||'').match(/(20\d{2})[.\-/年\s]*(\d{1,2})?/);return m?Number(m[1])*100+Number(m[2]||0):0;};
+  const experiences=(Array.isArray(r.experiences)?r.experiences:[]).map(x=>{const src=findExp(x);if(!src)return null;return {company:src.company,position:src.position,date:dateRange(src.start,src.end,src.current),_startRank:dateRank(src.start)||dateRank(src.end),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,6):[]};}).filter(Boolean).sort((a,b)=>b._startRank-a._startRank).map(({_startRank,...x})=>x);
+  const projects=(Array.isArray(r.projects)?r.projects:[]).map(x=>{const src=findProj(x);if(!src)return null;return {title:src.title,date:dateRange(src.start,src.end,false),_startRank:dateRank(src.start)||dateRank(src.end),bullets:Array.isArray(x.bullets)?x.bullets.map(v=>String(v||'').trim()).filter(Boolean).slice(0,5):[]};}).filter(Boolean).sort((a,b)=>b._startRank-a._startRank).map(({_startRank,...x})=>x);
   return {
     personal:structuredClone(profile.personal||{}),
     summary:String(r.summary||'').trim(),
@@ -601,8 +602,20 @@ function buildResumeTemplateHtml(template,r){
   const sections=[...doc.querySelectorAll('.content > .sec')];
   const findSection=t=>sections.find(sec=>sec.querySelector('.sec-title')?.textContent.trim()===t);
   const edu=findSection('教育背景');
-  if(edu){const e=r.education?.[0]||{};const org=edu.querySelector('.org'),role=edu.querySelector('.role'),date=edu.querySelector('.date');if(org)org.textContent=e.school||e.raw||'';if(role)role.textContent=e.degree||'';if(date)date.textContent=e.start&&e.end?`${e.start} - ${e.end}`:'';}
-  const summary=findSection('综合评价'); if(summary){const el=summary.querySelector('.plain');if(el)el.textContent=r.summary||'';if(!r.summary)summary.remove();}
+  if(edu){
+    const e=(r.education||[])[0]||{};
+    const raw=String(e.raw||'');
+    const org=edu.querySelector('.org'),role=edu.querySelector('.role'),date=edu.querySelector('.date');
+    const school=e.school||raw.match(/(广州城市理工学院|[^|｜]+学院|[^|｜]+大学)/)?.[0]?.trim()||'';
+    const degree=e.degree||[e.major,e.level].filter(Boolean).join(' · ')||(raw.match(/经济统计学[^|｜]*/)?.[0]?.trim())||'';
+    if(org&&school)org.textContent=school;
+    if(role&&degree)role.textContent=degree;
+    const range=e.start&&e.end?`${e.start} - ${e.end}`:(raw.match(/20\d{2}[.\-/年]\d{1,2}\s*[-—至]+\s*20\d{2}[.\-/年]\d{1,2}/)?.[0]||'2020.09 - 2024.06');
+    if(date)date.textContent=range;
+    // 缺少结构化教育数据时保留模板中的教育内容，不删除教育模块。
+  }
+  const summary=findSection('综合评价');
+  if(summary){const el=summary.querySelector('.plain');if(el&&String(r.summary||'').trim())el.textContent=String(r.summary).trim();/* 空摘要时保留模板原文和模块 */}
   const projects=findSection('项目经历');
   if(projects)setTemplateSection(projects,'项目经历',(r.projects||[]).map(x=>({title:x.title,date:x.date,bullets:x.bullets})));
   const works=findSection('工作经历');

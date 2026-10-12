@@ -569,7 +569,7 @@ const EMBEDDED_RESUME_TEMPLATE_B64 = 'PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9InpoLU
 let templateSourcePromise = null;
 async function getResumeTemplateSource(){
   if(!templateSourcePromise){
-    templateSourcePromise=Promise.resolve(atob(EMBEDDED_RESUME_TEMPLATE_B64));
+    templateSourcePromise=Promise.resolve(new TextDecoder('utf-8').decode(Uint8Array.from(atob(EMBEDDED_RESUME_TEMPLATE_B64), ch=>ch.charCodeAt(0))));
   }
   return templateSourcePromise;
 }
